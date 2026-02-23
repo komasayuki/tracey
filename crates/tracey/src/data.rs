@@ -28,10 +28,11 @@ use tracing::info;
 // Markdown rendering
 use marq::{
     AasvgHandler, ArboriumHandler, CompareHandler, InlineCodeHandler, PikruHandler, RenderOptions,
-    ReqHandler, parse_frontmatter, render,
+    ReqHandler, parse_frontmatter,
 };
 
 use crate::config::Config;
+use crate::heading_requirements::render_with_heading_requirements;
 use crate::rule_suggestions::suggest_similar_rule_ids;
 use crate::search;
 
@@ -948,7 +949,7 @@ async fn extract_markdown_rules_cached(
         compute_relative_path(project_root, &canonical)
     };
 
-    let doc = render(&content, &RenderOptions::default())
+    let doc = render_with_heading_requirements(&content, &RenderOptions::default())
         .await
         .map_err(|e| eyre::eyre!("Failed to process {}: {}", canonical.display(), e))?;
 
@@ -2446,7 +2447,7 @@ async fn load_spec_content(
     *current_source_file.lock().unwrap() = first_source_file.clone();
     let absolute_source_path = root.join(&first_source_file).display().to_string();
     let opts = opts.with_source_path(&absolute_source_path);
-    let doc = render(&combined_markdown, &opts).await?;
+    let doc = render_with_heading_requirements(&combined_markdown, &opts).await?;
 
     // Create a single section with all content
     // (Frontend concatenates sections anyway, this just simplifies tracking)

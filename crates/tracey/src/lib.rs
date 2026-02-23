@@ -8,6 +8,7 @@ pub mod bump;
 pub mod config;
 pub mod daemon;
 pub mod data;
+pub mod heading_requirements;
 pub(crate) mod rule_suggestions;
 pub mod search;
 pub mod server;
@@ -19,7 +20,9 @@ use std::path::PathBuf;
 use tracey_core::ReqDefinition;
 
 // Re-export from marq for rule extraction
-use marq::{RenderOptions, render};
+use marq::RenderOptions;
+
+use crate::heading_requirements::render_with_heading_requirements;
 
 /// Extracted rule with source location info
 #[derive(Clone)]
@@ -148,7 +151,7 @@ pub async fn load_rules_from_glob(
         let content = std::fs::read_to_string(path)
             .wrap_err_with(|| format!("Failed to read {}", path.display()))?;
 
-        let doc = render(&content, &RenderOptions::default())
+        let doc = render_with_heading_requirements(&content, &RenderOptions::default())
             .await
             .map_err(|e| eyre::eyre!("Failed to process {}: {}", path.display(), e))?;
 

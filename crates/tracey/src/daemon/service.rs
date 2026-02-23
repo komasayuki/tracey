@@ -11,6 +11,7 @@ use tracing::debug;
 
 use super::engine::Engine;
 use super::watcher::WatcherState;
+use crate::heading_requirements::render_with_heading_requirements;
 use crate::rule_suggestions::suggest_similar_rule_ids;
 use crate::server::QueryEngine;
 use roam::{Context, Tx};
@@ -765,7 +766,7 @@ impl TraceyDaemon for TraceyService {
             // For rules, render the markdown snippet to HTML
             let highlighted = if r.kind == ResultKind::Rule {
                 let opts = marq::RenderOptions::default();
-                match marq::render(&r.highlighted, &opts).await {
+                match render_with_heading_requirements(&r.highlighted, &opts).await {
                     Ok(doc) => doc.html,
                     Err(_) => r.highlighted.clone(),
                 }
@@ -1199,7 +1200,7 @@ impl TraceyDaemon for TraceyService {
         // For markdown spec files, show coverage diagnostics for definitions
         if path.extension().is_some_and(|ext| ext == "md") {
             let options = marq::RenderOptions::default();
-            if let Ok(doc) = marq::render(&req.content, &options).await {
+            if let Ok(doc) = render_with_heading_requirements(&req.content, &options).await {
                 for def in &doc.reqs {
                     // Use marker_span for diagnostics (only squiggle the marker, not content)
                     let (start_line, start_char, end_line, end_char) =
@@ -1517,7 +1518,7 @@ impl TraceyDaemon for TraceyService {
         // For markdown spec files, tokenize requirement definitions
         if path.extension().is_some_and(|ext| ext == "md") {
             let options = marq::RenderOptions::default();
-            if let Ok(doc) = marq::render(&req.content, &options).await {
+            if let Ok(doc) = render_with_heading_requirements(&req.content, &options).await {
                 for def in &doc.reqs {
                     // Use marker_span for semantic tokens (only color the marker)
                     let (start_line, start_char, _, _) =
@@ -1579,7 +1580,7 @@ impl TraceyDaemon for TraceyService {
         // For markdown spec files, show code lenses for requirement definitions
         if path.extension().is_some_and(|ext| ext == "md") {
             let options = marq::RenderOptions::default();
-            if let Ok(doc) = marq::render(&req.content, &options).await {
+            if let Ok(doc) = render_with_heading_requirements(&req.content, &options).await {
                 for def in &doc.reqs {
                     // Use marker_span for code lens positioning
                     let (start_line, start_char, _, end_char) =
@@ -1665,7 +1666,7 @@ impl TraceyDaemon for TraceyService {
         // For markdown spec files, show hints for requirement definitions
         if path.extension().is_some_and(|ext| ext == "md") {
             let options = marq::RenderOptions::default();
-            if let Ok(doc) = marq::render(&req.content, &options).await {
+            if let Ok(doc) = render_with_heading_requirements(&req.content, &options).await {
                 for def in &doc.reqs {
                     // Use marker_span for inlay hint positioning (after the marker)
                     let (line, _, _, end_char) =
@@ -1912,7 +1913,7 @@ impl TraceyDaemon for TraceyService {
         // For markdown files, highlight all definitions of the same rule (typically just one)
         if path.extension().is_some_and(|ext| ext == "md") {
             let options = marq::RenderOptions::default();
-            if let Ok(doc) = marq::render(&req.content, &options).await {
+            if let Ok(doc) = render_with_heading_requirements(&req.content, &options).await {
                 return doc
                     .reqs
                     .iter()
@@ -2078,7 +2079,9 @@ async fn find_rule_at_position(
     if path.extension().is_some_and(|ext| ext == "md") {
         // Parse markdown to find requirement definitions
         let options = marq::RenderOptions::default();
-        let doc = marq::render(content, &options).await.ok()?;
+        let doc = render_with_heading_requirements(content, &options)
+            .await
+            .ok()?;
 
         let target_offset = line_col_to_offset(content, line, character)?;
 
@@ -2280,7 +2283,9 @@ fn run_git_capture(project_root: &Path, args: &[&str]) -> Option<String> {
 
 async fn find_rule_text_in_markdown(content: &str, rule_id: &RuleId) -> Option<String> {
     let options = marq::RenderOptions::default();
-    let doc = marq::render(content, &options).await.ok()?;
+    let doc = render_with_heading_requirements(content, &options)
+        .await
+        .ok()?;
     let rule_id = rule_id.to_string();
     doc.reqs
         .iter()

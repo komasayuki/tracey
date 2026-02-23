@@ -8,9 +8,10 @@ use eyre::{Result, WrapErr, bail};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use marq::{RenderOptions, render};
+use marq::RenderOptions;
 
 use crate::config::Config;
+use crate::heading_requirements::render_with_heading_requirements;
 use crate::matches_glob;
 
 /// A rule whose text changed in the staged index but whose version was not bumped.
@@ -74,7 +75,7 @@ pub fn git_cat_file(project_root: &Path, revision: &str, path: &str) -> Result<O
 
 /// Parse a spec markdown string and return a map from rule **base** ID → `ReqDefinition`.
 async fn parse_spec_rules(content: &str) -> Result<HashMap<String, marq::ReqDefinition>> {
-    let doc = render(content, &RenderOptions::default())
+    let doc = render_with_heading_requirements(content, &RenderOptions::default())
         .await
         .map_err(|e| eyre::eyre!("failed to parse spec: {e}"))?;
 
