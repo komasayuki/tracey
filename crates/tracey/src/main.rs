@@ -10,7 +10,7 @@ use owo_colors::OwoColorize;
 use std::path::PathBuf;
 
 // Use the library crate
-use tracey::{bridge, daemon, find_project_root};
+use tracey::{bridge, daemon, find_project_root, generate};
 
 /// CLI arguments
 #[derive(Debug, facet::Facet)]
@@ -152,6 +152,17 @@ enum Command {
         /// Path to config file
         #[facet(args::named, args::short = 'c', default = ".config/tracey/config.styx")]
         config: PathBuf,
+    },
+
+    /// Generate static website pages with dodeca (ddc).
+    Generate {
+        /// Project root directory (default: current directory)
+        #[facet(args::positional, default)]
+        root: Option<PathBuf>,
+
+        /// Output directory (default: docs/generate)
+        #[facet(args::named, args::short = 'o', default)]
+        output: Option<PathBuf>,
     },
 }
 
@@ -377,6 +388,8 @@ async fn main() -> Result<()> {
             }
             Ok(())
         }
+
+        Command::Generate { root, output } => generate::run(root, output),
 
         // r[impl daemon.cli.query]
         Command::Query { root, query } => {

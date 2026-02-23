@@ -199,12 +199,14 @@ fn build_dashboard() {
             dashboard_dir.join("tsconfig.json"),
         ];
 
-        let newest_src = newest_modified_time(&src_root).into_iter().chain(
-            source_files
-                .iter()
-                .filter_map(|path| fs::metadata(path).ok()?.modified().ok()),
-        )
-        .max();
+        let newest_src = newest_modified_time(&src_root)
+            .into_iter()
+            .chain(
+                source_files
+                    .iter()
+                    .filter_map(|path| fs::metadata(path).ok()?.modified().ok()),
+            )
+            .max();
         let oldest_dist = dist_files
             .iter()
             .filter_map(|path| fs::metadata(path).ok()?.modified().ok())
