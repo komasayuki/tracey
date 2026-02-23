@@ -33,6 +33,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Enable Windows long paths
+        if: runner.os == 'Windows'
+        run: git config --global core.longpaths true
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -52,7 +56,26 @@ jobs:
           version: "10"
           run_install: false
 
-      - name: Build binary
+      - name: Verify Node/pnpm availability
+        run: |
+          node --version
+          pnpm --version
+
+      - name: Build dashboard assets
+        working-directory: crates/tracey/src/bridge/http/dashboard
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Build binary (Unix)
+        if: runner.os != 'Windows'
+        run: cargo build --release --locked --bin tracey --target ${{ matrix.target }}
+
+      - name: Build binary (Windows with clang-cl)
+        if: runner.os == 'Windows'
+        env:
+          CC: clang-cl
+          CXX: clang-cl
         run: cargo build --release --locked --bin tracey --target ${{ matrix.target }}
 
       - name: Create archive (Unix)
