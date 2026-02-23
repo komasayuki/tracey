@@ -9,6 +9,8 @@ pub mod config;
 pub mod daemon;
 pub mod data;
 pub mod heading_requirements;
+mod heading_requirements_html;
+mod heading_requirements_parse;
 pub(crate) mod rule_suggestions;
 pub mod search;
 pub mod server;
