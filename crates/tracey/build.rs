@@ -3,6 +3,7 @@
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::time::SystemTime;
 use time::OffsetDateTime;
 use time::format_description::well_known::Iso8601;
 
@@ -181,13 +182,39 @@ fn build_dashboard() {
     println!("cargo:rerun-if-changed=src/bridge/http/dashboard/dist/assets/index.js");
     println!("cargo:rerun-if-changed=src/bridge/http/dashboard/dist/assets/index.css");
 
-    // Skip build if dist already exists (for faster incremental builds)
-    // To force rebuild, delete the dist directory
-    if dist_dir.join("index.html").exists()
-        && dist_dir.join("assets/index.js").exists()
-        && dist_dir.join("assets/index.css").exists()
-    {
-        return;
+    // dist が存在しても、src 側が新しければ再ビルドする
+    let dist_index = dist_dir.join("index.html");
+    let dist_js = dist_dir.join("assets/index.js");
+    let dist_css = dist_dir.join("assets/index.css");
+    let dist_files = [&dist_index, &dist_js, &dist_css];
+
+    let dist_exists = dist_files.iter().all(|p| p.exists());
+    if dist_exists {
+        let src_root = dashboard_dir.join("src");
+        let source_files = [
+            dashboard_dir.join("index.html"),
+            dashboard_dir.join("package.json"),
+            dashboard_dir.join("pnpm-lock.yaml"),
+            dashboard_dir.join("vite.config.ts"),
+            dashboard_dir.join("tsconfig.json"),
+        ];
+
+        let newest_src = newest_modified_time(&src_root).into_iter().chain(
+            source_files
+                .iter()
+                .filter_map(|path| fs::metadata(path).ok()?.modified().ok()),
+        )
+        .max();
+        let oldest_dist = dist_files
+            .iter()
+            .filter_map(|path| fs::metadata(path).ok()?.modified().ok())
+            .min();
+
+        if let (Some(src_time), Some(dist_time)) = (newest_src, oldest_dist)
+            && src_time <= dist_time
+        {
+            return;
+        }
     }
 
     // Check if node is available
@@ -322,4 +349,31 @@ fn build_dashboard() {
     if !status.success() {
         panic!("pnpm build failed");
     }
+}
+
+fn newest_modified_time(path: &Path) -> Option<SystemTime> {
+    let mut newest = fs::metadata(path).ok()?.modified().ok();
+    let entries = fs::read_dir(path).ok()?;
+
+    for entry in entries.filter_map(Result::ok) {
+        let entry_path = entry.path();
+        let Some(metadata) = fs::metadata(&entry_path).ok() else {
+            continue;
+        };
+
+        let candidate = if metadata.is_dir() {
+            newest_modified_time(&entry_path)
+        } else {
+            metadata.modified().ok()
+        };
+
+        if let Some(modified) = candidate {
+            newest = Some(match newest {
+                Some(current) if current > modified => current,
+                _ => modified,
+            });
+        }
+    }
+
+    newest
 }

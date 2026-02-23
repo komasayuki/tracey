@@ -15,7 +15,7 @@ use axum::{
     body::Body,
     extract::{FromRequestParts, Path, Query, State, WebSocketUpgrade, ws},
     http::{Request, StatusCode, header},
-    response::{Html, IntoResponse, Response},
+    response::{IntoResponse, Response},
     routing::get,
 };
 use eyre::Result;
@@ -204,8 +204,17 @@ static INDEX_CSS: &str = include_str!("dashboard/dist/assets/index.css");
 static INDEX_JS: &str = include_str!("dashboard/dist/assets/index.js");
 
 /// SPA fallback - serve index.html for all non-API routes.
-async fn spa_fallback() -> Html<&'static str> {
-    Html(INDEX_HTML)
+async fn spa_fallback() -> Response {
+    // ダッシュボード本体は更新反映を優先し、キャッシュしない
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        INDEX_HTML,
+    )
+        .into_response()
 }
 
 /// Serve static assets from embedded files.
@@ -213,13 +222,19 @@ async fn serve_asset(Path(path): Path<String>) -> Response {
     match path.as_str() {
         "index.css" => (
             StatusCode::OK,
-            [(header::CONTENT_TYPE, "text/css")],
+            [
+                (header::CONTENT_TYPE, "text/css"),
+                (header::CACHE_CONTROL, "no-store"),
+            ],
             INDEX_CSS,
         )
             .into_response(),
         "index.js" => (
             StatusCode::OK,
-            [(header::CONTENT_TYPE, "application/javascript")],
+            [
+                (header::CONTENT_TYPE, "application/javascript"),
+                (header::CACHE_CONTROL, "no-store"),
+            ],
             INDEX_JS,
         )
             .into_response(),

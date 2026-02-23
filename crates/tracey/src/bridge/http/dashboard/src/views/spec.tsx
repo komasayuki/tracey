@@ -144,8 +144,6 @@ function aggregateCoverage(node: OutlineTreeNode): AggregatedCoverage {
 interface OutlineTreeProps {
   nodes: OutlineTreeNode[];
   activeHeading: string | null;
-  specName: string | null;
-  impl: string | null;
   onSelectHeading: (slug: string) => void;
   depth?: number;
 }
@@ -153,8 +151,6 @@ interface OutlineTreeProps {
 function OutlineTree({
   nodes,
   activeHeading,
-  specName,
-  impl,
   onSelectHeading,
   depth = 0,
 }: OutlineTreeProps) {
@@ -178,7 +174,15 @@ function OutlineTree({
             ? "is-in-active-branch"
             : ""} ${isComplete ? "is-complete" : ""} ${isIncomplete ? "is-incomplete" : ""}"
         >
-          <a class="toc-row" href=${`/${specName}/${impl}/spec#${h.slug}`}>
+          <a
+            class="toc-row"
+            href=${`#${h.slug}`}
+            onClick=${(e: MouseEvent) => {
+              // 左側アウトラインは必ず同一ページ内スクロールとして扱う
+              e.preventDefault();
+              onSelectHeading(h.slug);
+            }}
+          >
             <span class="toc-link"> ${h.title} </span>
             ${showCoverage &&
             html`
@@ -206,8 +210,6 @@ function OutlineTree({
               <${OutlineTree}
                 nodes=${node.children}
                 activeHeading=${activeHeading}
-                specName=${specName}
-                impl=${impl}
                 onSelectHeading=${onSelectHeading}
                 depth=${depth + 1}
               />
@@ -247,6 +249,20 @@ export function SpecView({
   scrollPosition,
   onScrollChange,
 }: SpecViewProps) {
+  // スクロールコンテナ基準で要素の目標スクロール位置を計算する。
+  // offsetTop は offsetParent 基準のため、要件コンテナ配下の見出しでは正しくない。
+  const computeContainerScrollTop = (
+    container: HTMLElement,
+    element: HTMLElement,
+    topOffset: number,
+  ) => {
+    const containerRect = container.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    const currentScroll = container.scrollTop;
+    const targetScrollTop = currentScroll + (elementRect.top - containerRect.top) - topOffset;
+    return Math.max(0, targetScrollTop);
+  };
+
   // Use selectedSpec or default to first spec
   const specName = selectedSpec || config.specs?.[0]?.name || null;
   const spec = useSpec(specName, version);
@@ -323,14 +339,15 @@ export function SpecView({
 
       const scrollTop = contentBody.scrollTop;
       const viewportTop = 100;
+      const containerRect = contentBody.getBoundingClientRect();
 
       let activeId: string | null = null;
 
       for (const el of headingElements) {
         const htmlEl = el as HTMLElement;
-        const offsetTop = htmlEl.offsetTop;
+        const headingTop = scrollTop + (htmlEl.getBoundingClientRect().top - containerRect.top);
 
-        if (offsetTop <= scrollTop + viewportTop) {
+        if (headingTop <= scrollTop + viewportTop) {
           activeId = htmlEl.id;
         } else {
           break;
@@ -702,11 +719,24 @@ export function SpecView({
     if (!contentRef.current || !contentBodyRef.current) return;
     const el = contentRef.current.querySelector(`[id="${slug}"]`);
     if (el) {
-      const targetScrollTop = (el as HTMLElement).offsetTop - 100;
+      const targetScrollTop = computeContainerScrollTop(
+        contentBodyRef.current,
+        el as HTMLElement,
+        100,
+      );
       contentBodyRef.current.scrollTo({ top: Math.max(0, targetScrollTop) });
       setActiveHeading(slug);
     }
   }, []);
+
+  const selectOutlineHeading = useCallback(
+    (slug: string) => {
+      history.pushState(null, "", `${window.location.pathname}${window.location.search}#${slug}`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      scrollToHeading(slug);
+    },
+    [scrollToHeading],
+  );
 
   // Handle clicks on headings, rule markers, anchor links, and spec refs
   useEffect(() => {
@@ -724,7 +754,9 @@ export function SpecView({
         history.pushState(null, "", `#${slug}`);
         setActiveHeading(slug);
         // Scroll the heading to a comfortable position (not at very top)
-        const targetScrollTop = (heading as HTMLElement).offsetTop - 100;
+        const targetScrollTop = contentBodyRef.current
+          ? computeContainerScrollTop(contentBodyRef.current, heading as HTMLElement, 100)
+          : 0;
         contentBodyRef.current?.scrollTo({ top: Math.max(0, targetScrollTop) });
         return;
       }
@@ -1011,14 +1043,18 @@ export function SpecView({
             }, 3000);
           }
         } else if (selectedHeading && selectedHeading !== lastScrolledHeading.current) {
-          lastScrolledHeading.current = selectedHeading;
           const headingEl = contentRef.current.querySelector(`[id="${selectedHeading}"]`);
           if (headingEl) {
-            const targetScrollTop = (headingEl as HTMLElement).offsetTop - 100;
+            const targetScrollTop = computeContainerScrollTop(
+              contentBodyRef.current,
+              headingEl as HTMLElement,
+              100,
+            );
             contentBodyRef.current.scrollTo({
               top: Math.max(0, targetScrollTop),
             });
             setActiveHeading(selectedHeading);
+            lastScrolledHeading.current = selectedHeading;
           }
         } else if (initialScrollPosition.current > 0) {
           contentBodyRef.current.scrollTo({
@@ -1057,9 +1093,7 @@ export function SpecView({
             <${OutlineTree}
               nodes=${outlineTree}
               activeHeading=${activeHeading}
-              specName=${specName}
-              impl=${selectedImpl}
-              onSelectHeading=${scrollToHeading}
+              onSelectHeading=${selectOutlineHeading}
             />
           </ul>
         </div>
