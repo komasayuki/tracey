@@ -1,222 +1,73 @@
-# tracey
+# tracey (Forked)
 
-> **Note:** Looking for Tracy, the frame profiler? That's a different project: [wolfpld/tracy](https://github.com/wolfpld/tracy)
+Changes in this fork:
+- Support requirements definition in Markdown headings
 
-Spec coverage for codebases. Tracks traceability between requirements (in markdown) and implementations/tests (in source code). Catches spec drift before it becomes a problem.
+## Heading-Based Requirement Definitions
 
-## What it does
+This fork allows requirement definitions directly in Markdown headings.
 
-Specs, implementations, and tests drift apart — code changes without updating specs, specs describe unimplemented features, tests cover different scenarios than requirements specify.
+- A heading that starts with `r[...]` is treated as a requirement definition.
+- Example marker: `### r[feature.login]`
+- Requirement content starts on the next line and continues until the next heading
+  at the same level or a higher level (fewer `#`).
+- This means requirement bodies can contain multiple lines, multiple paragraphs,
+  lists, code blocks, and deeper subheadings.
 
-Tracey uses lightweight annotations in markdown and source code comments to link specification requirements with implementing code and tests. This enables:
+In short: headings can now act as requirement markers, while still preserving
+normal Markdown structure.
 
-- Verifying multiple implementations (different languages, platforms) match the same spec
-- Finding which requirements lack implementation or tests
-- Seeing which requirement justifies each piece of code
-- Analyzing impact when requirements or code changes
-- Detecting stale references when spec text changes but code annotations haven't been updated
-
-For the full specification, see [docs/spec/tracey.md](docs/spec/tracey.md).
-
-## Installation
-
-```bash
-# With cargo-binstall (fast, downloads pre-built binary)
-cargo binstall tracey
-
-# Or build from source
-cargo install tracey
-```
-
-Pre-built binaries are available for `aarch64-apple-darwin`, `aarch64-unknown-linux-gnu`, `x86_64-unknown-linux-gnu`, `x86_64-pc-windows-msvc`, and `aarch64-pc-windows-msvc`.
-
-## Quick Start
-
-### 1. Define requirements in your spec (markdown)
-
-Use the `r[req.id]` syntax to define requirements in your specification documents:
+## Definition Samples
 
 ```markdown
-# Channel Management
+# Product Spec
 
-r[channel.id.allocation]
-Channel IDs MUST be allocated sequentially starting from 0.
+## Authentication
 
-r[channel.id.parity]
-Client-initiated channels MUST use odd IDs, server-initiated channels MUST use even IDs.
+### r[auth.login]
+The system must allow users to sign in with email and password.
+
+If credentials are invalid, the system must return a user-safe error message.
+
+#### Notes
+- Lock the account for 5 minutes after 5 failed attempts.
+- Do not reveal whether the email exists.
+
+### r[auth.logout]
+The system must terminate the current session immediately.
+
+After logout, protected pages must require re-authentication.
+
+## API
+
+### r[api.token.refresh]
+The API must provide a refresh-token endpoint.
+
+The endpoint must rotate refresh tokens and invalidate the old token.
+
+#### Error handling
+- Expired refresh token -> `401 Unauthorized`
+- Revoked refresh token -> `401 Unauthorized`
+
+## Audit
+
+### r[audit.login.event]
+Each successful login must be recorded in the audit log.
+Include user ID, timestamp, and source IP.
 ```
-
-The prefix (`r` in this case) can be any lowercase alphanumeric marker. Tracey infers it from the spec files.
-
-### 2. Reference requirements in your code
-
-Add references in source code comments using `PREFIX[VERB REQ]`:
-
-```rust
-// r[impl channel.id.allocation]
-fn allocate_channel_id(&mut self) -> u32 {
-    let id = self.next_id;
-    self.next_id += 1;
-    id
-}
-
-// r[impl channel.id.parity]
-fn next_client_channel(&mut self) -> u32 {
-    // ...
-}
-```
-
-```rust
-// In test files:
-// r[verify channel.id.parity]
-#[test]
-fn client_channels_are_odd() {
-    // ...
-}
-```
-
-Verbs:
-
-| Verb | Meaning |
-|------|---------|
-| `impl` | This code implements the requirement (default if verb omitted) |
-| `verify` | This code tests/verifies the requirement |
-| `depends` | This code depends on the requirement |
-| `related` | This code is related to the requirement |
-
-### 3. Configure tracey
-
-Create `.config/tracey/config.styx`:
-
-```styx
-specs (
-  {
-    name my-spec
-    include (docs/spec/**/*.md)
-    impls (
-      {
-        name rust
-        include (src/**/*.rs)
-        exclude (target/**)
-        test_include (tests/**/*.rs)
-      }
-    )
-  }
-)
-```
-
-Config fields:
-
-| Field | Description |
-|-------|-------------|
-| `name` | Display name for the spec or implementation |
-| `include` | Glob patterns for files to scan |
-| `exclude` | Glob patterns for files to skip |
-| `test_include` | Glob patterns for test files (only `verify` annotations allowed) |
-| `source_url` | Canonical URL for the spec (e.g. a GitHub repository) |
-
-### 4. Launch the dashboard
-
-```bash
-tracey web
-# or: tracey web --open  (opens browser automatically)
-```
-
-## Architecture
-
-Tracey runs as a persistent daemon per workspace. All interfaces (web dashboard, LSP, MCP, CLI queries) connect to the daemon over a Unix socket using [roam](https://github.com/bearcove/roam) RPC.
-
-```
-                    .tracey/daemon.sock
-                            │
-             ┌──────────────┼──────────────┐
-             ▼              ▼              ▼
-         HTTP bridge    MCP bridge     LSP bridge
-         (dashboard)    (stdio)        (tower-lsp)
-```
-
-The daemon watches the filesystem, rebuilds on changes (debounced), and auto-exits after 10 minutes of inactivity. All bridges auto-start the daemon if it isn't running.
-
-## Interfaces
-
-### Web Dashboard (`tracey web`)
-
-Interactive browser UI with three views:
-
-- **Spec view** — rendered spec with inline requirement status, click-through to implementations
-- **Coverage view** — filterable table of all requirements with impl/verify coverage
-- **Sources view** — file tree with coverage badges, syntax-highlighted source with annotations
-
-Supports Cmd+K / Ctrl+K search across all requirements.
-
-### LSP (`tracey lsp`)
-
-Full language server with:
-
-- Hover info showing requirement text and coverage status
-- Go-to-definition (jump from code reference to spec) and find-all-references
-- Diagnostics for broken references, unknown prefixes, stale annotations
-- Completions for requirement IDs and verbs
-- Rename support (rename a requirement ID across all files)
-- Code lens, inlay hints, semantic tokens
-
-Install the [Zed extension](tracey-zed/) or point any LSP-compatible editor at `tracey lsp`.
-
-### MCP Server (`tracey mcp`)
-
-Exposes tracey as an [MCP](https://modelcontextprotocol.io/) tool server for AI assistants. Tools include `tracey_status`, `tracey_uncovered`, `tracey_untested`, `tracey_stale`, `tracey_unmapped`, `tracey_rule`, `tracey_config`, `tracey_validate`, and more.
-
-### CLI Queries (`tracey query`)
-
-Same queries available from the terminal:
-
-```bash
-tracey query status              # coverage overview
-tracey query uncovered           # rules with no impl references
-tracey query untested            # rules with impl but no verify references
-tracey query stale               # references pointing to older rule versions
-tracey query unmapped            # source tree with coverage percentages
-tracey query rule auth.login     # full details for a specific rule
-tracey query validate            # check for broken refs, naming issues
-```
-
-### AI Skill (`tracey skill install`)
-
-Bundled skill for Claude Code and Codex that teaches the AI how to add correct tracey annotations:
-
-```bash
-tracey skill install --claude    # install to ~/.claude/skills/tracey
-tracey skill install --codex     # install to ~/.codex/skills/tracey
-```
-
-### Git Hooks
-
-```bash
-tracey pre-commit   # fail if rule text changed without a version bump
-tracey bump         # auto-bump version numbers of changed rules, re-stage
-```
-
-## Version Tracking
-
-Requirements support version suffixes for tracking spec evolution:
 
 ```markdown
-> r[auth.login+3]
-> Users MUST authenticate with a valid token.
+# Service Behavior
+
+## r[service.startup]
+The service must become ready within 10 seconds after startup.
+
+### Health checks included in this requirement body
+- Dependency connectivity check
+- Configuration validation check
+
+## r[service.shutdown]
+The service must stop gracefully on SIGTERM.
+
+It must finish in-flight requests before exit.
 ```
-
-In code, references include the version they were written against:
-
-```rust
-// r[impl auth.login+3]
-```
-
-When spec text changes and the version is bumped to `+4`, tracey reports the `+3` reference as **stale** — the code needs review to confirm it still matches the updated requirement. `tracey bump` automates the version bumping for staged changes.
-
-## Supported Languages
-
-Tracey scans comments in: Rust, Swift, TypeScript, TSX, JavaScript, JSX, Go, C, C++, Objective-C, Objective-C++, Java, Kotlin, Scala, Groovy, C#, Zig, PHP.
-
-## License
-
-[MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE)
