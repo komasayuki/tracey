@@ -2,8 +2,9 @@
 
 Changes in this fork:
 - Support requirements definition in Markdown headings
+- `tracey generate` to export `tracey web` site as static HTML.
 
-## Heading-Based Requirement Definitions
+## Support requirements definition in Markdown headings
 
 This fork allows requirement definitions directly in Markdown headings.
 
@@ -70,4 +71,20 @@ The service must become ready within 10 seconds after startup.
 The service must stop gracefully on SIGTERM.
 
 It must finish in-flight requests before exit.
+```
+
+
+## `tracey generate` to export `tracey web` site as static HTML.
+
+Default output directory: `docs/generate`
+
+```
+tracey generate
+```
+
+To specify output directory, you can use `-o` or `--output`.
+
+```
+tracey generate -o docs/my-site
+tracey generate --output /tmp/tracey-site
 ```
