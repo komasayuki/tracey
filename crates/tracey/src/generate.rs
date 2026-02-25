@@ -40,7 +40,8 @@ pub fn run(root: Option<PathBuf>, output: Option<PathBuf>) -> Result<()> {
 
     ensure_dodeca_ready(&source_root, &ddc_path)?;
     run_ddc_build(&ddc_path, &project_root, &output_dir)?;
-    let rewritten = crate::generate_postprocess::rewrite_for_file_scheme(&output_dir)?;
+    let rewritten =
+        crate::generate_postprocess::rewrite_for_file_scheme(&project_root, &output_dir)?;
     if rewritten > 0 {
         println!("Rewrote {rewritten} generated file(s) for local file:// browsing");
     }

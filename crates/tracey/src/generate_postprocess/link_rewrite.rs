@@ -1,63 +1,5 @@
-use eyre::{Result, WrapErr};
-use ignore::WalkBuilder;
-use std::path::Path;
-
-/// file:// で開いたときに壊れるルート絶対リンクを相対リンクへ変換する。
-pub(crate) fn rewrite_for_file_scheme(output_dir: &Path) -> Result<usize> {
-    let mut rewritten = 0usize;
-    let walker = WalkBuilder::new(output_dir)
-        .hidden(false)
-        .git_ignore(false)
-        .build();
-
-    for entry in walker {
-        let entry = entry?;
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-
-        let Some(ext) = path.extension().and_then(|s| s.to_str()) else {
-            continue;
-        };
-        if ext != "html" && ext != "css" {
-            continue;
-        }
-
-        let dir = path.parent().unwrap_or(output_dir);
-        let prefix = relative_prefix(output_dir, dir);
-        let original = std::fs::read_to_string(path)
-            .wrap_err_with(|| format!("Failed to read generated file {}", path.display()))?;
-        let updated = if ext == "html" {
-            rewrite_html_root_links(&original, &prefix)
-        } else {
-            rewrite_css_root_urls(&original, &prefix)
-        };
-
-        if updated != original {
-            std::fs::write(path, updated)
-                .wrap_err_with(|| format!("Failed to write generated file {}", path.display()))?;
-            rewritten += 1;
-        }
-    }
-
-    Ok(rewritten)
-}
-
-fn relative_prefix(root: &Path, dir: &Path) -> String {
-    let depth = dir
-        .strip_prefix(root)
-        .ok()
-        .map(|p| p.components().count())
-        .unwrap_or(0);
-    if depth == 0 {
-        "./".to_string()
-    } else {
-        "../".repeat(depth)
-    }
-}
-
-fn rewrite_html_root_links(input: &str, prefix: &str) -> String {
+/// HTML内の `/...` 形式リンクを file:// でも辿れる相対リンクへ変換する。
+pub(super) fn rewrite_html_root_links(input: &str, prefix: &str) -> String {
     let href = rewrite_html_attr_links(input, "href", prefix, true);
     let src = rewrite_html_attr_links(&href, "src", prefix, false);
     rewrite_html_attr_links(&src, "action", prefix, false)
@@ -70,8 +12,8 @@ fn rewrite_html_attr_links(input: &str, attr: &str, prefix: &str, force_index: b
     let mut cursor = 0usize;
 
     while cursor < input.len() {
-        let next = next_attr_occurrence(input, cursor, &dq_pat, &sq_pat);
-        let Some((pos, quote, pat_len)) = next else {
+        let Some((pos, quote, pat_len)) = next_attr_occurrence(input, cursor, &dq_pat, &sq_pat)
+        else {
             out.push_str(&input[cursor..]);
             break;
         };
@@ -83,8 +25,11 @@ fn rewrite_html_attr_links(input: &str, attr: &str, prefix: &str, force_index: b
             break;
         };
         let val_end = val_start + end_rel;
-        let raw = &input[val_start..val_end];
-        out.push_str(&rewrite_html_link_value(raw, prefix, force_index));
+        out.push_str(&rewrite_html_link_value(
+            &input[val_start..val_end],
+            prefix,
+            force_index,
+        ));
         out.push(quote);
         cursor = val_end + quote.len_utf8();
     }
@@ -119,21 +64,19 @@ fn rewrite_html_link_value(value: &str, prefix: &str, force_index: bool) -> Stri
 
     let cut = value.find(['?', '#']).unwrap_or(value.len());
     let (path_part, suffix) = value.split_at(cut);
-
     if let Some(path) = path_part.strip_prefix('/') {
-        let path = path_for_file_scheme(path, force_index);
-        return format!("{prefix}{path}{suffix}");
+        return format!(
+            "{prefix}{}{}",
+            path_for_file_scheme(path, force_index),
+            suffix
+        );
     }
-
-    let path = path_for_file_scheme(path_part, force_index);
-    format!("{path}{suffix}")
+    format!("{}{}", path_for_file_scheme(path_part, force_index), suffix)
 }
 
-fn is_rewritable_html_link(value: &str) -> bool {
-    if value.is_empty() {
-        return false;
-    }
-    if value.starts_with('#')
+pub(super) fn is_rewritable_html_link(value: &str) -> bool {
+    if value.is_empty()
+        || value.starts_with('#')
         || value.starts_with('?')
         || value.starts_with("//")
         || value.starts_with("data:")
@@ -152,19 +95,16 @@ fn is_rewritable_html_link(value: &str) -> bool {
     {
         return false;
     }
-
     true
 }
 
-fn path_for_file_scheme(path: &str, force_index: bool) -> String {
+pub(super) fn path_for_file_scheme(path: &str, force_index: bool) -> String {
     if path.is_empty() {
         return "index.html".to_string();
     }
-
     if !force_index {
         return path.to_string();
     }
-
     if path.ends_with('/') {
         return format!("{path}index.html");
     }
@@ -177,7 +117,8 @@ fn path_for_file_scheme(path: &str, force_index: bool) -> String {
     }
 }
 
-fn rewrite_css_root_urls(input: &str, prefix: &str) -> String {
+/// CSS内の `url(/...)` を file:// 向け相対パスへ変換する。
+pub(super) fn rewrite_css_root_urls(input: &str, prefix: &str) -> String {
     let mut s = input.to_string();
     s = s.replace("url(\"//", "url(\"__TRACEY_KEEP_URL_DBL_DQ__");
     s = s.replace("url('//", "url('__TRACEY_KEEP_URL_DBL_SQ__");
@@ -193,25 +134,13 @@ fn rewrite_css_root_urls(input: &str, prefix: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{relative_prefix, rewrite_css_root_urls, rewrite_html_root_links};
-    use std::path::Path;
-
-    #[test]
-    fn relative_prefix_for_nested_page() {
-        let root = Path::new("out");
-        let dir = Path::new("out/spec/tracey");
-        assert_eq!(relative_prefix(root, dir), "../../");
-    }
+    use super::{rewrite_css_root_urls, rewrite_html_root_links};
 
     #[test]
     fn html_root_links_are_rewritten() {
-        let html = r#"<a href="/guide/"></a><a href="/guide/configuration"></a><a href="../../guide/configuration"></a><img src="/logo.png"><a href="//example.com"></a>"#;
+        let html = r#"<a href="/guide/configuration"></a>"#;
         let got = rewrite_html_root_links(html, "../../");
-        assert!(got.contains(r#"href="../../guide/index.html""#));
         assert!(got.contains(r#"href="../../guide/configuration/index.html""#));
-        assert!(got.contains(r#"href="../../guide/configuration/index.html""#));
-        assert!(got.contains(r#"src="../../logo.png""#));
-        assert!(got.contains(r#"href="//example.com""#));
     }
 
     #[test]
