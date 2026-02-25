@@ -9,7 +9,7 @@ pub mod config;
 pub mod daemon;
 pub mod data;
 pub mod generate;
-mod generate_postprocess;
+mod generate_static;
 pub mod heading_requirements;
 mod heading_requirements_html;
 mod heading_requirements_parse;

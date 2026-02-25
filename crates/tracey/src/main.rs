@@ -389,7 +389,7 @@ async fn main() -> Result<()> {
             Ok(())
         }
 
-        Command::Generate { root, output } => generate::run(root, output),
+        Command::Generate { root, output } => generate::run(root, output).await,
 
         // r[impl daemon.cli.query]
         Command::Query { root, query } => {
