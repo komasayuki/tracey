@@ -206,5 +206,8 @@ See [r[req.abc.cde]](#r[req.abc.cde]) for navigation.
     assert_eq!(doc.reqs.len(), 1, "リンク内の r[...] は定義扱いしない");
     assert_eq!(doc.reqs[0].id.to_string(), "req.abc.cde");
     assert!(doc.reqs[0].raw.contains("r[req.abc.cde]"));
-    assert!(doc.html.contains(r##"<a href="#r[req.abc.cde]">r[req.abc.cde]</a>"##));
+    assert!(
+        doc.html
+            .contains(r##"<a href="#r[req.abc.cde]">r[req.abc.cde]</a>"##)
+    );
 }
