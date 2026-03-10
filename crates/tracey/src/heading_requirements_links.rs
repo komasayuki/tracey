@@ -1,5 +1,5 @@
 use crate::heading_requirements_parse::parse_req_marker;
-use marq::{DocElement, Document};
+use marq::{DocElement, Document, RenderOptions};
 use pulldown_cmark::{Event, Options, Parser, Tag};
 use std::ops::Range;
 
@@ -97,6 +97,16 @@ pub(crate) fn restore_link_markers(doc: &mut Document, replacements: &[(String, 
             DocElement::Paragraph(_) => {}
         }
     }
+}
+
+pub(crate) async fn render_html_preserving_link_markers(
+    markdown: &str,
+    options: &RenderOptions,
+) -> marq::Result<String> {
+    let sanitized = sanitize_link_markers(markdown);
+    let mut html = marq::render(&sanitized.markdown, options).await?.html;
+    restore_text(&mut html, &sanitized.replacements);
+    Ok(html)
 }
 
 fn restore_text(text: &mut String, replacements: &[(String, String)]) {

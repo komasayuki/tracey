@@ -608,8 +608,14 @@ export function SpecView({
       const hash = window.location.hash.slice(1);
       if (hash) {
         const el = contentRef.current?.querySelector(`#${CSS.escape(hash)}`);
-        if (el?.classList.contains("req-container")) {
-          return el as HTMLElement;
+        if (el instanceof HTMLElement) {
+          if (el.classList.contains("req-container")) {
+            return el;
+          }
+          const reqContainer = el.closest(".req-container");
+          if (reqContainer instanceof HTMLElement) {
+            return reqContainer;
+          }
         }
       }
       return contentRef.current?.querySelector(".req-container.req-focused") as HTMLElement | null;
@@ -1042,9 +1048,11 @@ export function SpecView({
         } else if (selectedHeading && selectedHeading !== lastScrolledHeading.current) {
           const headingEl = contentRef.current.querySelector(`[id="${selectedHeading}"]`);
           if (headingEl) {
+            const reqContainer = headingEl.closest(".req-container");
+            const scrollTarget = (reqContainer || headingEl) as HTMLElement;
             const targetScrollTop = computeContainerScrollTop(
               contentBodyRef.current,
-              headingEl as HTMLElement,
+              scrollTarget,
               100,
             );
             contentBodyRef.current.scrollTo({

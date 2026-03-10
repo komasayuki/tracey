@@ -1,4 +1,6 @@
-use crate::heading_requirements_links::{restore_link_markers, sanitize_link_markers};
+use crate::heading_requirements_links::{
+    render_html_preserving_link_markers, restore_link_markers, sanitize_link_markers,
+};
 use crate::heading_requirements_parse::{
     parse_heading, parse_req_leading_marker, parse_req_marker, update_fence_state,
 };
@@ -173,7 +175,7 @@ async fn build_heading_req(
     let html = if raw.is_empty() {
         String::new()
     } else {
-        marq::render(&raw, &RenderOptions::default()).await?.html
+        render_html_preserving_link_markers(&raw, &RenderOptions::default()).await?
     };
     let req = ReqDefinition {
         id: open.req_id,

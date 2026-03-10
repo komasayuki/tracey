@@ -12,6 +12,8 @@ const INDEX_CSS: &str = include_str!("../bridge/http/dashboard/dist/assets/index
 const INDEX_JS: &str = include_str!("../bridge/http/dashboard/dist/assets/index.js");
 const STATIC_DATA_JSON_PATH: &str = "tracey-static/api-data.json";
 const STATIC_DATA_JS_PATH: &str = "tracey-static/api-data.js";
+const STATIC_HIDE_EDIT_CSS: &str =
+    r#".req-badges-right,.req-badge.req-edit{display:none!important;}"#;
 
 pub(crate) async fn generate(project_root: &Path, output_dir: &Path) -> Result<()> {
     let snapshot = snapshot::build(project_root).await?;
@@ -109,7 +111,7 @@ fn inline_dashboard_assets(input: &str) -> String {
             "window.__TRACEY_EFFECTIVE_PATHNAME__()",
         )
         .replace("</script>", "<\\/script>");
-    input
+    let inlined = input
         .replace(
             "<link rel=\"stylesheet\" crossorigin href=\"/assets/index.css\">",
             &format!("<style>\n{css}\n</style>"),
@@ -117,7 +119,24 @@ fn inline_dashboard_assets(input: &str) -> String {
         .replace(
             "<script type=\"module\" crossorigin src=\"/assets/index.js\"></script>",
             &format!("<script type=\"module\">\n{js}\n</script>"),
-        )
+        );
+    inlined.replace(
+        "</head>",
+        &format!("<style>\n{STATIC_HIDE_EDIT_CSS}\n</style>\n</head>"),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::inline_dashboard_assets;
+
+    #[test]
+    fn static_output_hides_edit_button() {
+        let html = inline_dashboard_assets(
+            r#"<html><head><link rel="stylesheet" crossorigin href="/assets/index.css"></head><body><script type="module" crossorigin src="/assets/index.js"></script></body></html>"#,
+        );
+        assert!(html.contains(".req-badges-right,.req-badge.req-edit{display:none!important;}"));
+    }
 }
 
 fn default_route_path(config: &tracey_api::ApiConfig) -> String {

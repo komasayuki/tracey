@@ -33,6 +33,7 @@ use marq::{
 
 use crate::config::Config;
 use crate::heading_requirements::render_with_heading_requirements;
+use crate::markdown_anchor::github_requirement_anchor;
 use crate::rule_suggestions::suggest_similar_rule_ids;
 use crate::search;
 
@@ -333,6 +334,7 @@ impl ReqHandler for TraceyRuleHandler {
             let rule_id = rule.id.to_string();
             let coverage = self.coverage.get(&rule_id);
             let status = coverage.map(|c| c.status).unwrap_or("uncovered");
+            let github_anchor = github_requirement_anchor("r", &rule_id);
 
             // Insert <wbr> after dots for better line breaking
             let display_id = rule_id.replace('.', ".<wbr>");
@@ -435,11 +437,13 @@ impl ReqHandler for TraceyRuleHandler {
             // Render the opening of the req container
             Ok(format!(
                 r#"<div class="req-container req-{status}" id="{anchor}" data-br="{br_start}-{br_end}">
+<span class="req-anchor-alias" id="{github_anchor}" aria-hidden="true"></span>
 <div class="req-badges-left">{badges}</div>
 <div class="req-badges-right">{edit_badge}</div>
 <div class="req-content">"#,
                 status = status,
                 anchor = rule.anchor_id,
+                github_anchor = github_anchor,
                 br_start = rule.span.offset,
                 br_end = rule.span.offset + rule.span.length,
                 badges = badges_html,

@@ -211,3 +211,67 @@ See [r[req.abc.cde]](#r[req.abc.cde]) for navigation.
             .contains(r##"<a href="#r[req.abc.cde]">r[req.abc.cde]</a>"##)
     );
 }
+
+#[tokio::test]
+async fn preserves_requirement_link_text_inside_heading_requirement_body() {
+    let md = r#"
+#### r[req.gateway.set]
+[r[req.gateway.start]](#rreqgatewaystart) の後に呼び出せる。
+
+#### r[req.gateway.start]
+Gateway を開始する。
+"#;
+    let doc = tracey::heading_requirements::render_with_heading_requirements(
+        md,
+        &RenderOptions::default(),
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        doc.reqs[0]
+            .html
+            .contains(r##"<a href="#rreqgatewaystart">r[req.gateway.start]</a>"##)
+    );
+    assert!(
+        !doc.reqs[0]
+            .html
+            .contains(r##"<a href="#rreqgatewaystart"></a>"##)
+    );
+}
+
+#[tokio::test]
+async fn generates_github_style_requirement_anchor_alias_in_spec_view() {
+    let temp = tempfile::tempdir().expect("temporary directory");
+    let spec_path = temp.path().join("spec.md");
+    std::fs::write(
+        &spec_path,
+        r#"
+# Spec
+
+#### r[req.gateway.set]
+[r[req.gateway.start]](#rreqgatewaystart) の後に呼び出せる。
+
+#### r[req.gateway.start]
+Gateway を開始する。
+"#,
+    )
+    .expect("write spec");
+
+    let spec = render_spec_content_for_impl(
+        temp.path(),
+        &["spec.md".to_string()],
+        "demo",
+        "rust",
+        &ApiSpecForward {
+            name: "demo".to_string(),
+            rules: Vec::new(),
+        },
+    )
+    .await
+    .expect("spec content render failed");
+
+    let html = &spec.sections[0].html;
+    assert!(html.contains(r##"href="#rreqgatewaystart">r[req.gateway.start]</a>"##));
+    assert!(html.contains(r#"id="rreqgatewaystart""#));
+}
