@@ -56,6 +56,7 @@ ignore = { workspace = true }
 
 # Markdown rendering with syntax highlighting and diagrams
 marq = { workspace = true }
+pulldown-cmark = "0.13"
 
 # Syntax highlighting for source files
 arborium = { workspace = true }

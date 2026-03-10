@@ -1,3 +1,4 @@
+use crate::heading_requirements_links::{restore_link_markers, sanitize_link_markers};
 use crate::heading_requirements_parse::{
     parse_heading, parse_req_leading_marker, parse_req_marker, update_fence_state,
 };
@@ -30,7 +31,9 @@ pub async fn render_with_heading_requirements(
     markdown: &str,
     options: &RenderOptions,
 ) -> marq::Result<Document> {
-    let mut doc = marq::render(markdown, options).await?;
+    let sanitized = sanitize_link_markers(markdown);
+    let mut doc = marq::render(&sanitized.markdown, options).await?;
+    restore_link_markers(&mut doc, &sanitized.replacements);
     let extracted = extract_heading_requirements(markdown).await?;
     if extracted.is_empty() {
         return Ok(doc);

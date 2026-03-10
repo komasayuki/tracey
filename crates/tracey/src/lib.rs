@@ -12,6 +12,7 @@ pub mod generate;
 mod generate_static;
 pub mod heading_requirements;
 mod heading_requirements_html;
+mod heading_requirements_links;
 mod heading_requirements_parse;
 pub(crate) mod rule_suggestions;
 pub mod search;

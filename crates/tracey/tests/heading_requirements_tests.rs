@@ -189,3 +189,22 @@ after
         "duplicate heading id があっても要件がラップされるべき"
     );
 }
+
+#[tokio::test]
+async fn ignores_requirement_markers_inside_markdown_links() {
+    let md = r#"
+r[req.abc.cde]
+See [r[req.abc.cde]](#r[req.abc.cde]) for navigation.
+"#;
+    let doc = tracey::heading_requirements::render_with_heading_requirements(
+        md,
+        &RenderOptions::default(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(doc.reqs.len(), 1, "リンク内の r[...] は定義扱いしない");
+    assert_eq!(doc.reqs[0].id.to_string(), "req.abc.cde");
+    assert!(doc.reqs[0].raw.contains("r[req.abc.cde]"));
+    assert!(doc.html.contains(r##"<a href="#r[req.abc.cde]">r[req.abc.cde]</a>"##));
+}
