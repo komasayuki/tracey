@@ -1,0 +1,22 @@
+[package]
+name = "roam-local"
+version = "3.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/bearcove/roam"
+description = "Cross-platform local IPC for roam - Unix sockets on Unix, named pipes on Windows"
+
+[package.metadata]
+
+[package.metadata."docs.rs"]
+rustdoc-args = ["--html-in-header", "arborium-header.html"]
+
+[dependencies]
+tokio = { version = "1", features = ["net", "io-util", "sync"] }
+moire = { version = "0.1.0", git = "https://github.com/bearcove/moire", branch = "main" }
+
+[target.'cfg(windows)'.dependencies]
+tokio = { version = "1", features = ["net", "io-util", "sync"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

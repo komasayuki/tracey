@@ -104,3 +104,6 @@ marq = { git = "https://github.com/bearcove/marq", branch = "main", features = [
 [profile.dist]
 inherits = "release"
 lto = "thin"
+
+[patch."https://github.com/bearcove/roam"]
+roam-local = { path = "vendor/roam-local" }

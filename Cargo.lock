@@ -3356,7 +3356,6 @@ dependencies = [
 [[package]]
 name = "roam-local"
 version = "3.0.0"
-source = "git+https://github.com/bearcove/roam?branch=main#6e4e15b9fe9cda82476ebd59ff3e27eb76296cc5"
 dependencies = [
  "moire",
  "tokio",
