@@ -3,6 +3,7 @@ import { render } from "preact";
 import { EDITORS } from "../config";
 import { useSpec } from "../hooks";
 import { CoverageArc, html, showRefsPopup } from "../main";
+import { resolveDashboardLink } from "../navigation.js";
 import type { OutlineEntry, SpecViewProps, FileContent } from "../types";
 import { MarkdownEditor } from "../components/MarkdownEditor";
 import { InlineEditor } from "../components/InlineEditor";
@@ -998,16 +999,12 @@ export function SpecView({
         const href = anchor.getAttribute("href");
         if (!href) return;
 
-        try {
-          const url = new URL(href, window.location.href);
-          if (url.origin === window.location.origin) {
-            e.preventDefault();
-            history.pushState(null, "", url.pathname + url.search + url.hash);
-            window.dispatchEvent(new PopStateEvent("popstate"));
-            return;
-          }
-        } catch {
-          // Invalid URL, ignore
+        const navigation = resolveDashboardLink(href);
+        if (navigation) {
+          e.preventDefault();
+          history.pushState(null, "", navigation.target);
+          window.dispatchEvent(new PopStateEvent("popstate"));
+          return;
         }
       }
     };

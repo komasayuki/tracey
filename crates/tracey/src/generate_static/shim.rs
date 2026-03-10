@@ -43,6 +43,22 @@ fn build_shim_script(static_data_path: &str, route_path: &str) -> String {
     }}
   }}
 
+  function toBrowserHistoryUrl(url) {{
+    if (window.location.protocol !== 'file:' || !url) return url;
+    try {{
+      const parsed = new URL(url, 'https://tracey.local');
+      const nextRoute = parsed.pathname || '/';
+      const currentRoute = window.__TRACEY_CURRENT_ROUTE__ || STATIC_ROUTE || '/';
+      // 同じ論理ページ内の移動だけは、実ファイルの hash 遷移として扱う。
+      if (nextRoute === currentRoute) {{
+        return `${{window.location.pathname}}${{parsed.search}}${{parsed.hash}}`;
+      }}
+    }} catch (_) {{
+      return url;
+    }}
+    return url;
+  }}
+
   if (window.location.protocol === 'file:') {{
     window.__TRACEY_CURRENT_ROUTE__ = window.__TRACEY_CURRENT_ROUTE__ || STATIC_ROUTE || '/';
     const historyObj = window.history;
@@ -51,7 +67,7 @@ fn build_shim_script(static_data_path: &str, route_path: &str) -> String {
     historyObj.pushState = function(state, title, url) {{
       window.__TRACEY_CURRENT_ROUTE__ = toRoutePath(url);
       try {{
-        return rawPushState(state, title, url);
+        return rawPushState(state, title, toBrowserHistoryUrl(url));
       }} catch (_) {{
         return null;
       }}
@@ -59,7 +75,7 @@ fn build_shim_script(static_data_path: &str, route_path: &str) -> String {
     historyObj.replaceState = function(state, title, url) {{
       window.__TRACEY_CURRENT_ROUTE__ = toRoutePath(url);
       try {{
-        return rawReplaceState(state, title, url);
+        return rawReplaceState(state, title, toBrowserHistoryUrl(url));
       }} catch (_) {{
         return null;
       }}
