@@ -3,6 +3,9 @@
 Changes in this fork:
 - Support requirements definition in Markdown headings
 - `tracey generate` to export `tracey web` site as static HTML.
+- Support `impl.` / `verify.` requirement prefixes across coverage, dashboard, and tooling
+- Do not treat Markdown link text as requirement definitions
+- Allow underscores in requirement IDs
 
 ## Support requirements definition in Markdown headings
 
@@ -88,3 +91,45 @@ To specify output directory, you can use `-o` or `--output`.
 tracey generate -o docs/my-site
 tracey generate --output /tmp/tracey-site
 ```
+
+## Support `impl.` / `verify.` requirement prefixes across coverage, dashboard, and tooling
+
+This fork adds special handling for requirement IDs that start with `impl.` or
+`verify.`.
+
+- `impl.*` requirements only require implementation coverage.
+- `verify.*` requirements only require verification coverage.
+- The non-required side is treated as `Not Needed` in the dashboard.
+- Coverage aggregation, uncovered/untested queries, static export, and tooling
+  use the same rule.
+
+Examples:
+
+- `r[impl.gateway.start]` requires implementation, but not verification.
+- `r[verify.gateway.start]` requires verification, but not implementation.
+
+## Do not treat Markdown link text as requirement definitions
+
+This fork no longer treats requirement-like text inside Markdown links as a new
+requirement definition.
+
+That means links like the following are safe and do not create duplicate
+requirement IDs:
+
+```markdown
+[r[req.gateway.start]](#rreqgatewaystart)
+```
+
+The link text is preserved as normal Markdown content, while the actual
+requirement definition must still appear outside the link.
+
+## Allow underscores in requirement IDs
+
+This fork allows underscores in requirement IDs.
+
+- `r[req.gateway_start]` is valid.
+- `r[req.server_list.load]` is valid.
+- Hyphens are still valid too, so both `-` and `_` can be used inside each ID
+  segment.
+
+The first character of each segment must still start with a lowercase letter.
