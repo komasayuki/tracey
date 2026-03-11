@@ -126,19 +126,6 @@ fn inline_dashboard_assets(input: &str) -> String {
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::inline_dashboard_assets;
-
-    #[test]
-    fn static_output_hides_edit_button() {
-        let html = inline_dashboard_assets(
-            r#"<html><head><link rel="stylesheet" crossorigin href="/assets/index.css"></head><body><script type="module" crossorigin src="/assets/index.js"></script></body></html>"#,
-        );
-        assert!(html.contains(".req-badges-right,.req-badge.req-edit{display:none!important;}"));
-    }
-}
-
 fn default_route_path(config: &tracey_api::ApiConfig) -> String {
     let Some(spec) = config.specs.first() else {
         return "/".to_string();
@@ -179,4 +166,17 @@ fn build_routes(config: &tracey_api::ApiConfig) -> Vec<PathBuf> {
     }
 
     routes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::inline_dashboard_assets;
+
+    #[test]
+    fn static_output_hides_edit_button() {
+        let html = inline_dashboard_assets(
+            r#"<html><head><link rel="stylesheet" crossorigin href="/assets/index.css"></head><body><script type="module" crossorigin src="/assets/index.js"></script></body></html>"#,
+        );
+        assert!(html.contains(".req-badges-right,.req-badge.req-edit{display:none!important;}"));
+    }
 }

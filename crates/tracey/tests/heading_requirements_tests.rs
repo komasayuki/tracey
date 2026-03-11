@@ -77,7 +77,7 @@ async fn recognizes_requirement_in_patch_requirements_doc() {
 
     let has_target = rules
         .iter()
-        .any(|r| r.def.id.to_string() == "req.markdown.section.support");
+        .any(|r| r.def.id.base == "req.markdown.section.support");
     assert!(has_target, "req.markdown.section.support が抽出されるべき");
 }
 

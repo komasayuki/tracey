@@ -370,38 +370,38 @@ impl ReqHandler for TraceyRuleHandler {
                     "req-impl",
                     "Implementation not needed for this requirement",
                 ));
-            } else if let Some(cov) = coverage {
-                if !cov.impl_refs.is_empty() {
-                    let r = &cov.impl_refs[0];
-                    let filename = r.file.rsplit('/').next().unwrap_or(&r.file);
-                    let icon = devicon_class(&r.file)
-                        .map(|c| format!(r#"<i class="{c}"></i> "#))
-                        .unwrap_or_default();
-                    let count_suffix = if cov.impl_refs.len() > 1 {
-                        format!(" +{}", cov.impl_refs.len() - 1)
-                    } else {
-                        String::new()
-                    };
-                    // Serialize all refs as JSON for popup (manual, no serde)
-                    let all_refs_json = cov
-                        .impl_refs
-                        .iter()
-                        .map(|r| {
-                            format!(
-                                r#"{{"file":"{}","line":{}}}"#,
-                                r.file.replace('\\', "\\\\").replace('"', "\\\""),
-                                r.line
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                        .join(",");
-                    let all_refs_json = format!("[{}]", all_refs_json).replace('"', "&quot;");
-                    // r[impl dashboard.links.impl-refs]
-                    badges_html.push_str(&format!(
-                        r#"<a class="req-badge req-impl" href="/{}/{}/sources/{}:{}" data-file="{}" data-line="{}" data-all-refs="{}" title="Implementation: {}:{}">{icon}{}:{}{}</a>"#,
-                        self.spec_name, self.impl_name, r.file, r.line, r.file, r.line, all_refs_json, r.file, r.line, filename, r.line, count_suffix
-                    ));
-                }
+            } else if let Some(cov) = coverage
+                && !cov.impl_refs.is_empty()
+            {
+                let r = &cov.impl_refs[0];
+                let filename = r.file.rsplit('/').next().unwrap_or(&r.file);
+                let icon = devicon_class(&r.file)
+                    .map(|c| format!(r#"<i class="{c}"></i> "#))
+                    .unwrap_or_default();
+                let count_suffix = if cov.impl_refs.len() > 1 {
+                    format!(" +{}", cov.impl_refs.len() - 1)
+                } else {
+                    String::new()
+                };
+                // Serialize all refs as JSON for popup (manual, no serde)
+                let all_refs_json = cov
+                    .impl_refs
+                    .iter()
+                    .map(|r| {
+                        format!(
+                            r#"{{"file":"{}","line":{}}}"#,
+                            r.file.replace('\\', "\\\\").replace('"', "\\\""),
+                            r.line
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let all_refs_json = format!("[{}]", all_refs_json).replace('"', "&quot;");
+                // r[impl dashboard.links.impl-refs]
+                badges_html.push_str(&format!(
+                    r#"<a class="req-badge req-impl" href="/{}/{}/sources/{}:{}" data-file="{}" data-line="{}" data-all-refs="{}" title="Implementation: {}:{}">{icon}{}:{}{}</a>"#,
+                    self.spec_name, self.impl_name, r.file, r.line, r.file, r.line, all_refs_json, r.file, r.line, filename, r.line, count_suffix
+                ));
             }
 
             // r[impl dashboard.links.verify-refs]
@@ -410,37 +410,37 @@ impl ReqHandler for TraceyRuleHandler {
                     "req-test",
                     "Verification not needed for this requirement",
                 ));
-            } else if let Some(cov) = coverage {
-                if !cov.verify_refs.is_empty() {
-                    let r = &cov.verify_refs[0];
-                    let filename = r.file.rsplit('/').next().unwrap_or(&r.file);
-                    let icon = devicon_class(&r.file)
-                        .map(|c| format!(r#"<i class="{c}"></i> "#))
-                        .unwrap_or_default();
-                    let count_suffix = if cov.verify_refs.len() > 1 {
-                        format!(" +{}", cov.verify_refs.len() - 1)
-                    } else {
-                        String::new()
-                    };
-                    // Serialize all refs as JSON for popup (manual, no serde)
-                    let all_refs_json = cov
-                        .verify_refs
-                        .iter()
-                        .map(|r| {
-                            format!(
-                                r#"{{"file":"{}","line":{}}}"#,
-                                r.file.replace('\\', "\\\\").replace('"', "\\\""),
-                                r.line
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                        .join(",");
-                    let all_refs_json = format!("[{}]", all_refs_json).replace('"', "&quot;");
-                    badges_html.push_str(&format!(
-                        r#"<a class="req-badge req-test" href="/{}/{}/sources/{}:{}" data-file="{}" data-line="{}" data-all-refs="{}" title="Test: {}:{}">{icon}{}:{}{}</a>"#,
-                        self.spec_name, self.impl_name, r.file, r.line, r.file, r.line, all_refs_json, r.file, r.line, filename, r.line, count_suffix
-                    ));
-                }
+            } else if let Some(cov) = coverage
+                && !cov.verify_refs.is_empty()
+            {
+                let r = &cov.verify_refs[0];
+                let filename = r.file.rsplit('/').next().unwrap_or(&r.file);
+                let icon = devicon_class(&r.file)
+                    .map(|c| format!(r#"<i class="{c}"></i> "#))
+                    .unwrap_or_default();
+                let count_suffix = if cov.verify_refs.len() > 1 {
+                    format!(" +{}", cov.verify_refs.len() - 1)
+                } else {
+                    String::new()
+                };
+                // Serialize all refs as JSON for popup (manual, no serde)
+                let all_refs_json = cov
+                    .verify_refs
+                    .iter()
+                    .map(|r| {
+                        format!(
+                            r#"{{"file":"{}","line":{}}}"#,
+                            r.file.replace('\\', "\\\\").replace('"', "\\\""),
+                            r.line
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let all_refs_json = format!("[{}]", all_refs_json).replace('"', "&quot;");
+                badges_html.push_str(&format!(
+                    r#"<a class="req-badge req-test" href="/{}/{}/sources/{}:{}" data-file="{}" data-line="{}" data-all-refs="{}" title="Test: {}:{}">{icon}{}:{}{}</a>"#,
+                    self.spec_name, self.impl_name, r.file, r.line, r.file, r.line, all_refs_json, r.file, r.line, filename, r.line, count_suffix
+                ));
             }
 
             // r[impl dashboard.editing.byte-range.attribute]

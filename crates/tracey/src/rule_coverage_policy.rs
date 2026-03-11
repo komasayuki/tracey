@@ -1,7 +1,6 @@
 use tracey_api::ApiRule;
 
 /// 要件IDの prefix に応じて、必要な coverage を判定する共通ポリシー。
-
 pub fn rule_needs_impl(rule_id: &str) -> bool {
     !rule_id.starts_with("verify.")
 }
