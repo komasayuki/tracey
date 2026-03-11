@@ -6,6 +6,8 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    // static export の git diff を読みやすくするため、圧縮しない。
+    minify: false,
     rollupOptions: {
       output: {
         entryFileNames: "assets/index.js",

@@ -126,14 +126,50 @@ pub(super) async fn build(project_root: &Path) -> Result<StaticSnapshot> {
 
     entries.sort_by(|a, b| (&a.spec, &a.impl_name).cmp(&(&b.spec, &b.impl_name)));
 
-    Ok(StaticSnapshot {
+    let mut snapshot = StaticSnapshot {
         version: data.version,
         config: data.config,
         health: StaticHealth { config_error },
         entries,
         search_rules: search_rules.into_values().collect(),
         search_sources: search_sources.into_values().collect(),
-    })
+    };
+    canonicalize_snapshot(&mut snapshot);
+    Ok(snapshot)
+}
+
+fn canonicalize_snapshot(snapshot: &mut StaticSnapshot) {
+    for entry in &mut snapshot.entries {
+        entry.forward.rules.sort_by(|a, b| a.id.cmp(&b.id));
+        for rule in &mut entry.forward.rules {
+            rule.impl_refs.sort_by(ref_sort_key);
+            rule.verify_refs.sort_by(ref_sort_key);
+            rule.depends_refs.sort_by(ref_sort_key);
+            rule.stale_refs.sort_by(|a, b| {
+                (&a.file, a.line, &a.reference_id).cmp(&(&b.file, b.line, &b.reference_id))
+            });
+        }
+
+        entry.reverse.files.sort_by(|a, b| a.path.cmp(&b.path));
+        for file in &mut entry.files {
+            file.data.units.sort_by(|a, b| {
+                (&a.start_line, &a.end_line, &a.kind, &a.name).cmp(&(
+                    &b.start_line,
+                    &b.end_line,
+                    &b.kind,
+                    &b.name,
+                ))
+            });
+        }
+        entry.files.sort_by(|a, b| a.path.cmp(&b.path));
+    }
+
+    snapshot.search_rules.sort_by(|a, b| a.id.cmp(&b.id));
+    snapshot.search_sources.sort_by(|a, b| a.path.cmp(&b.path));
+}
+
+fn ref_sort_key(a: &tracey_api::ApiCodeRef, b: &tracey_api::ApiCodeRef) -> std::cmp::Ordering {
+    (&a.file, a.line).cmp(&(&b.file, b.line))
 }
 
 fn load_config_with_error(config_path: &Path) -> Result<(crate::config::Config, Option<String>)> {
