@@ -34,6 +34,7 @@ use marq::{
 use crate::config::Config;
 use crate::heading_requirements::render_with_heading_requirements;
 use crate::markdown_anchor::github_requirement_anchor;
+use crate::rule_id_validation::is_valid_rule_id;
 use crate::rule_suggestions::suggest_similar_rule_ids;
 use crate::search;
 
@@ -1217,29 +1218,6 @@ fn unknown_rule_message_with_context(
     }
 }
 
-fn is_valid_rule_id(id: &RuleId) -> bool {
-    let base_id = &id.base;
-    for segment in base_id.split('.') {
-        if segment.is_empty() {
-            return false;
-        }
-        if !segment
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
-        {
-            return false;
-        }
-        if !segment
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_lowercase())
-        {
-            return false;
-        }
-    }
-    true
-}
-
 fn detect_circular_dependencies(forward_data: &ApiSpecForward) -> Vec<Vec<RuleId>> {
     use std::collections::{HashMap, HashSet};
 
@@ -1410,7 +1388,7 @@ fn compute_validation_by_impl(
                 errors.push(ValidationError {
                     code: ValidationErrorCode::InvalidNaming,
                     message: format!(
-                        "Rule ID '{}' doesn't follow naming convention (use dot-separated lowercase segments)",
+                        "Rule ID '{}' doesn't follow naming convention (use dot-separated lowercase segments with letters, digits, '-', or '_')",
                         rule.id
                     ),
                     file: rule.source_file.clone(),

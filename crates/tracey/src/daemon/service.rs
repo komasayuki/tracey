@@ -12,6 +12,7 @@ use tracing::debug;
 use super::engine::Engine;
 use super::watcher::WatcherState;
 use crate::heading_requirements::render_with_heading_requirements;
+use crate::rule_id_validation::is_valid_rule_id;
 use crate::rule_suggestions::suggest_similar_rule_ids;
 use crate::server::QueryEngine;
 use roam::{Context, Tx};
@@ -2340,33 +2341,4 @@ fn save_config(path: &Path, config: &crate::config::Config) -> eyre::Result<()> 
     let mut file = std::fs::File::create(path)?;
     file.write_all(styx_string.as_bytes())?;
     Ok(())
-}
-
-/// Check if a rule ID follows the naming convention
-fn is_valid_rule_id(id: &RuleId) -> bool {
-    let base_id = &id.base;
-
-    // Split by dots and check each segment
-    for segment in base_id.split('.') {
-        if segment.is_empty() {
-            return false;
-        }
-        // Each segment must contain only lowercase letters, digits, or hyphens
-        if !segment
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
-        {
-            return false;
-        }
-        // Segment must start with a letter
-        if !segment
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_lowercase())
-        {
-            return false;
-        }
-    }
-
-    true
 }
