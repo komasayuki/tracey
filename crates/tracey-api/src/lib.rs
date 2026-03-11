@@ -178,8 +178,12 @@ pub struct SpecSection {
 pub struct OutlineCoverage {
     /// Number of rules with implementation refs
     pub impl_count: usize,
+    /// Number of rules that require implementation coverage
+    pub impl_total: usize,
     /// Number of rules with verification refs
     pub verify_count: usize,
+    /// Number of rules that require verification coverage
+    pub verify_total: usize,
     /// Total number of rules
     pub total: usize,
 }

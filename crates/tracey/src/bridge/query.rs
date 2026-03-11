@@ -136,11 +136,12 @@ impl QueryClient {
 
                 // Coverage numbers, one line per spec/impl combination.
                 for impl_status in &status.impls {
-                    let total = impl_status.total_rules;
+                    let total = impl_status.impl_total_rules;
                     let covered = impl_status.covered_rules;
                     let stale = impl_status.stale_rules;
                     let uncovered = total.saturating_sub(covered + stale);
                     let verified = impl_status.verified_rules;
+                    let verify_total = impl_status.verify_total_rules;
 
                     output.push_str(&format!(
                         "{}/{}: {} of {} requirements are covered.",
@@ -165,7 +166,7 @@ impl QueryClient {
 
                     output.push_str(&format!(
                         " {} of {} have a verification reference.\n",
-                        verified, total
+                        verified, verify_total
                     ));
                 }
 
@@ -260,7 +261,7 @@ impl QueryClient {
         let output = match self.client.untested(req).await {
             Ok(response) => {
                 let mut output = format!(
-                    "{}/{}: {} untested (impl but no verify) out of {} rules\n\n",
+                    "{}/{}: {} untested (missing verify) out of {} rules\n\n",
                     response.spec,
                     response.impl_name,
                     response.untested_count,

@@ -12,6 +12,9 @@ use tracing::debug;
 use super::engine::Engine;
 use super::watcher::WatcherState;
 use crate::heading_requirements::render_with_heading_requirements;
+use crate::rule_coverage_policy::{
+    rule_missing_impl, rule_missing_verify, rule_needs_impl, rule_needs_verify,
+};
 use crate::rule_id_validation::is_valid_rule_id;
 use crate::rule_suggestions::suggest_similar_rule_ids;
 use crate::server::QueryEngine;
@@ -238,6 +241,8 @@ impl TraceyDaemon for TraceyService {
                     spec,
                     impl_name,
                     total_rules: s.total_rules,
+                    impl_total_rules: s.impl_total_rules,
+                    verify_total_rules: s.verify_total_rules,
                     covered_rules: s.impl_covered,
                     stale_rules: s.stale_covered,
                     verified_rules: s.verify_covered,
@@ -259,7 +264,7 @@ impl TraceyDaemon for TraceyService {
             UncoveredResponse {
                 spec: result.spec,
                 impl_name: result.impl_name,
-                total_rules: result.stats.total_rules,
+                total_rules: result.stats.impl_total_rules,
                 uncovered_count: result.total_uncovered,
                 by_section: result
                     .by_section
@@ -299,7 +304,7 @@ impl TraceyDaemon for TraceyService {
             UntestedResponse {
                 spec: result.spec,
                 impl_name: result.impl_name,
-                total_rules: result.stats.total_rules,
+                total_rules: result.stats.verify_total_rules,
                 untested_count: result.total_untested,
                 by_section: result
                     .by_section
@@ -1212,9 +1217,8 @@ impl TraceyDaemon for TraceyService {
                         && let Some((_, rule)) = find_rule_in_data(&data, &def_id)
                     {
                         let impl_count = rule.impl_refs.len();
-                        let verify_count = rule.verify_refs.len();
 
-                        if impl_count == 0 {
+                        if rule_missing_impl(rule) {
                             diagnostics.push(LspDiagnostic {
                                 severity: "hint".to_string(),
                                 code: "uncovered".to_string(),
@@ -1224,14 +1228,16 @@ impl TraceyDaemon for TraceyService {
                                 end_line,
                                 end_char,
                             });
-                        } else if verify_count == 0 {
+                        } else if rule_missing_verify(rule) {
+                            let message = if rule_needs_impl(&rule.id.base) {
+                                format!("Requirement has {} impl but no verification", impl_count)
+                            } else {
+                                "Requirement has no verification".to_string()
+                            };
                             diagnostics.push(LspDiagnostic {
                                 severity: "hint".to_string(),
                                 code: "untested".to_string(),
-                                message: format!(
-                                    "Requirement has {} impl but no verification",
-                                    impl_count
-                                ),
+                                message,
                                 start_line,
                                 start_char,
                                 end_line,
@@ -1594,10 +1600,16 @@ impl TraceyDaemon for TraceyService {
                         let impl_count = rule.impl_refs.len();
                         let verify_count = rule.verify_refs.len();
 
-                        let title = if impl_count == 0 && verify_count == 0 {
-                            "⚪ not implemented".to_string()
-                        } else if verify_count == 0 {
-                            format!("🟡 {} impl, no verify", impl_count)
+                        let title = if rule_missing_impl(rule) && rule_missing_verify(rule) {
+                            "⚪ not covered".to_string()
+                        } else if rule_missing_impl(rule) {
+                            "⚪ no impl".to_string()
+                        } else if rule_missing_verify(rule) {
+                            if rule_needs_impl(&rule.id.base) {
+                                format!("🟡 {} impl, no verify", impl_count)
+                            } else {
+                                "🟡 no verify".to_string()
+                            }
                         } else {
                             format!("🟢 {} impl, {} verify", impl_count, verify_count)
                         };
@@ -1631,10 +1643,16 @@ impl TraceyDaemon for TraceyService {
                     let impl_count = rule.impl_refs.len();
                     let verify_count = rule.verify_refs.len();
 
-                    let title = if impl_count == 0 && verify_count == 0 {
-                        "⚪ not implemented".to_string()
-                    } else if verify_count == 0 {
-                        format!("🟡 {} impl, no verify", impl_count)
+                    let title = if rule_missing_impl(rule) && rule_missing_verify(rule) {
+                        "⚪ not covered".to_string()
+                    } else if rule_missing_impl(rule) {
+                        "⚪ no impl".to_string()
+                    } else if rule_missing_verify(rule) {
+                        if rule_needs_impl(&rule.id.base) {
+                            format!("🟡 {} impl, no verify", impl_count)
+                        } else {
+                            "🟡 no verify".to_string()
+                        }
                     } else {
                         format!("🟢 {} impl, {} verify", impl_count, verify_count)
                     };
@@ -1684,8 +1702,17 @@ impl TraceyDaemon for TraceyService {
                     {
                         let impl_count = rule.impl_refs.len();
                         let verify_count = rule.verify_refs.len();
-
-                        let label = format!(" [{} impl, {} verify]", impl_count, verify_count);
+                        let impl_label = if rule_needs_impl(&rule.id.base) {
+                            impl_count.to_string()
+                        } else {
+                            "N/A".to_string()
+                        };
+                        let verify_label = if rule_needs_verify(&rule.id.base) {
+                            verify_count.to_string()
+                        } else {
+                            "N/A".to_string()
+                        };
+                        let label = format!(" [{impl_label} impl, {verify_label} verify]");
 
                         hints.push(LspInlayHint {
                             line,
@@ -1712,8 +1739,17 @@ impl TraceyDaemon for TraceyService {
                 if let Some((_, rule)) = find_rule_in_data(&data, &reference.req_id) {
                     let impl_count = rule.impl_refs.len();
                     let verify_count = rule.verify_refs.len();
-
-                    let label = format!(" [{} impl, {} verify]", impl_count, verify_count);
+                    let impl_label = if rule_needs_impl(&rule.id.base) {
+                        impl_count.to_string()
+                    } else {
+                        "N/A".to_string()
+                    };
+                    let verify_label = if rule_needs_verify(&rule.id.base) {
+                        verify_count.to_string()
+                    } else {
+                        "N/A".to_string()
+                    };
+                    let label = format!(" [{impl_label} impl, {verify_label} verify]");
 
                     hints.push(LspInlayHint {
                         line,

@@ -12,6 +12,11 @@ use std::collections::BTreeMap;
 use tracey_core::RuleId;
 
 use crate::data::{ApiCodeRef, ApiFileEntry, ApiRule, DashboardData, ImplKey};
+use crate::rule_coverage_policy::{
+    coverage_percent, rule_impl_is_covered, rule_impl_is_stale, rule_is_fully_covered,
+    rule_missing_impl, rule_missing_verify, rule_needs_impl, rule_needs_verify,
+    rule_verify_is_covered,
+};
 
 // ============================================================================
 // Delta Tracking
@@ -34,6 +39,8 @@ pub struct CoverageChange {
 #[derive(Debug, Clone, Default)]
 pub struct CoverageStats {
     pub total_rules: usize,
+    pub impl_total_rules: usize,
+    pub verify_total_rules: usize,
     /// Rules with at least one exact implementation reference (not stale).
     pub impl_covered: usize,
     /// Rules where any reference is stale. Mutually exclusive with impl_covered.
@@ -47,34 +54,26 @@ pub struct CoverageStats {
 impl CoverageStats {
     pub fn from_rules(rules: &[ApiRule]) -> Self {
         let total = rules.len();
-        // A rule is stale if is_stale is set; stale rules are NOT counted as impl_covered.
-        let stale_covered = rules.iter().filter(|r| r.is_stale).count();
-        let impl_covered = rules
+        let impl_total = rules.iter().filter(|r| rule_needs_impl(&r.id.base)).count();
+        let verify_total = rules
             .iter()
-            .filter(|r| !r.is_stale && !r.impl_refs.is_empty())
+            .filter(|r| rule_needs_verify(&r.id.base))
             .count();
-        let verify_covered = rules.iter().filter(|r| !r.verify_refs.is_empty()).count();
-        let fully_covered = rules
-            .iter()
-            .filter(|r| !r.is_stale && !r.impl_refs.is_empty() && !r.verify_refs.is_empty())
-            .count();
+        let stale_covered = rules.iter().filter(|r| rule_impl_is_stale(r)).count();
+        let impl_covered = rules.iter().filter(|r| rule_impl_is_covered(r)).count();
+        let verify_covered = rules.iter().filter(|r| rule_verify_is_covered(r)).count();
+        let fully_covered = rules.iter().filter(|r| rule_is_fully_covered(r)).count();
 
         Self {
             total_rules: total,
+            impl_total_rules: impl_total,
+            verify_total_rules: verify_total,
             impl_covered,
             stale_covered,
             verify_covered,
             fully_covered,
-            impl_percent: if total > 0 {
-                (impl_covered as f64 / total as f64) * 100.0
-            } else {
-                0.0
-            },
-            verify_percent: if total > 0 {
-                (verify_covered as f64 / total as f64) * 100.0
-            } else {
-                0.0
-            },
+            impl_percent: coverage_percent(impl_covered, impl_total),
+            verify_percent: coverage_percent(verify_covered, verify_total),
         }
     }
 }
@@ -132,11 +131,11 @@ impl Delta {
             for new_rule in &new_forward.rules {
                 let old_rule = old_rules.get(&new_rule.id);
 
-                let was_impl_covered = old_rule.is_some_and(|r| !r.impl_refs.is_empty());
-                let is_impl_covered = !new_rule.impl_refs.is_empty();
+                let was_impl_covered = old_rule.is_some_and(|r| rule_impl_is_covered(r));
+                let is_impl_covered = rule_impl_is_covered(new_rule);
 
-                let was_verify_covered = old_rule.is_some_and(|r| !r.verify_refs.is_empty());
-                let is_verify_covered = !new_rule.verify_refs.is_empty();
+                let was_verify_covered = old_rule.is_some_and(|r| rule_verify_is_covered(r));
+                let is_verify_covered = rule_verify_is_covered(new_rule);
 
                 // Check for newly covered (impl)
                 if !was_impl_covered
@@ -165,7 +164,9 @@ impl Delta {
                 }
 
                 // Check for coverage lost
-                if was_impl_covered && !is_impl_covered {
+                if (was_impl_covered && !is_impl_covered)
+                    || (was_verify_covered && !is_verify_covered)
+                {
                     newly_uncovered.push(new_rule.id.clone());
                 }
             }
@@ -256,7 +257,7 @@ impl<'a> QueryEngine<'a> {
         let uncovered_rules: Vec<&ApiRule> = forward
             .rules
             .iter()
-            .filter(|r| r.impl_refs.is_empty())
+            .filter(|r| rule_missing_impl(r))
             .filter(|r| {
                 prefix_filter
                     .map(|p| r.id.base.to_lowercase().starts_with(&p.to_lowercase()))
@@ -294,7 +295,7 @@ impl<'a> QueryEngine<'a> {
         let untested_rules: Vec<&ApiRule> = forward
             .rules
             .iter()
-            .filter(|r| !r.impl_refs.is_empty() && r.verify_refs.is_empty())
+            .filter(|r| rule_missing_verify(r))
             .filter(|r| {
                 prefix_filter
                     .map(|p| r.id.base.to_lowercase().starts_with(&p.to_lowercase()))
@@ -797,7 +798,7 @@ impl UncoveredResult {
         ));
         out.push_str(&format!(
             "Implementation coverage: {:.0}% ({}/{} rules)\n\n",
-            self.stats.impl_percent, self.stats.impl_covered, self.stats.total_rules
+            self.stats.impl_percent, self.stats.impl_covered, self.stats.impl_total_rules
         ));
 
         if self.total_uncovered == 0 {
@@ -842,7 +843,7 @@ impl UntestedResult {
         ));
         out.push_str(&format!(
             "Verification coverage: {:.0}% ({}/{} rules)\n\n",
-            self.stats.verify_percent, self.stats.verify_covered, self.stats.total_rules
+            self.stats.verify_percent, self.stats.verify_covered, self.stats.verify_total_rules
         ));
 
         if self.total_untested == 0 {
@@ -1028,8 +1029,10 @@ impl RuleInfo {
         } else {
             for cov in &self.coverage {
                 let impl_label = format!("{}/{}", cov.spec, cov.impl_name);
-                let has_impl = !cov.impl_refs.is_empty();
-                let has_verify = !cov.verify_refs.is_empty();
+                let needs_impl = rule_needs_impl(&self.id.base);
+                let needs_verify = rule_needs_verify(&self.id.base);
+                let has_impl = needs_impl && !cov.impl_refs.is_empty();
+                let has_verify = needs_verify && !cov.verify_refs.is_empty();
 
                 let status_icon = match (has_impl, has_verify) {
                     (true, true) => "✓✓",
@@ -1040,16 +1043,20 @@ impl RuleInfo {
 
                 out.push_str(&format!("### {} [{}]\n", impl_label, status_icon));
 
-                if cov.impl_refs.is_empty() && cov.verify_refs.is_empty() {
+                if !has_impl && !has_verify {
                     out.push_str("  (not covered)\n");
                 } else {
-                    if !cov.impl_refs.is_empty() {
+                    if !needs_impl {
+                        out.push_str("  **Implementations:** not needed\n");
+                    } else if !cov.impl_refs.is_empty() {
                         out.push_str("  **Implementations:**\n");
                         for r in &cov.impl_refs {
                             out.push_str(&format!("    - {}:{}\n", r.file, r.line));
                         }
                     }
-                    if !cov.verify_refs.is_empty() {
+                    if !needs_verify {
+                        out.push_str("  **Verifications:** not needed\n");
+                    } else if !cov.verify_refs.is_empty() {
                         out.push_str("  **Verifications:**\n");
                         for r in &cov.verify_refs {
                             out.push_str(&format!("    - {}:{}\n", r.file, r.line));

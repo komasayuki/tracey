@@ -137,9 +137,17 @@ export interface OutlineCoverage {
    */
   implCount: number;
   /**
+   * Number of rules that require implementation coverage
+   */
+  implTotal: number;
+  /**
    * Number of rules with verification refs
    */
   verifyCount: number;
+  /**
+   * Number of rules that require verification coverage
+   */
+  verifyTotal: number;
   /**
    * Total number of rules
    */

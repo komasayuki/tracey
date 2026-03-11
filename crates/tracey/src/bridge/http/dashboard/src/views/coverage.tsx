@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
+import { ruleMissingImpl, ruleMissingVerify, summarizeRules } from "../coverage-policy.js";
 import { LEVELS } from "../config";
 import { FileRef, html } from "../main";
 import type { CoverageViewProps } from "../types";
@@ -65,9 +66,9 @@ export function CoverageView({
 
 		// Filter by coverage
 		if (filter === "impl") {
-			rules = rules.filter((r) => r.implRefs.length === 0);
+			rules = rules.filter((r) => ruleMissingImpl(r));
 		} else if (filter === "verify") {
-			rules = rules.filter((r) => r.verifyRefs.length === 0);
+			rules = rules.filter((r) => ruleMissingVerify(r));
 		}
 
 		// Filter by search
@@ -88,16 +89,7 @@ export function CoverageView({
 		if (level !== "all") {
 			rules = rules.filter((r) => inferLevel(r) === level);
 		}
-		const total = rules.length;
-		const impl = rules.filter((r) => r.implRefs.length > 0).length;
-		const verify = rules.filter((r) => r.verifyRefs.length > 0).length;
-		return {
-			total,
-			impl,
-			verify,
-			implPct: total ? (impl / total) * 100 : 0,
-			verifyPct: total ? (verify / total) * 100 : 0,
-		};
+		return summarizeRules(rules);
 	}, [allRules, level, inferLevel]);
 
 	const mdIcon = html`<svg

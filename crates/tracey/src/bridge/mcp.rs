@@ -53,7 +53,7 @@ pub struct UncoveredTool {
 /// Get rules without verification references
 #[mcp_tool(
     name = "tracey_untested",
-    description = "List rules that have implementation but no verification references ([verify ...] comments). These rules are implemented but not tested."
+    description = "List rules that are missing required verification references ([verify ...] comments)."
 )]
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 pub struct UntestedTool {

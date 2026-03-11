@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { render } from "preact";
+import { coveragePercent } from "../coverage-policy.js";
 import { EDITORS } from "../config";
 import { useSpec } from "../hooks";
 import { CoverageArc, html, showRefsPopup } from "../main";
@@ -121,24 +122,19 @@ function isActiveOrHasActiveChild(node: OutlineTreeNode, activeHeading: string |
 interface AggregatedCoverage {
   total: number;
   implCount: number;
+  implTotal: number;
   verifyCount: number;
+  verifyTotal: number;
 }
 
 function aggregateCoverage(node: OutlineTreeNode): AggregatedCoverage {
-  // Start with this node's own stats
-  let total = node.entry.aggregated.total;
-  let implCount = node.entry.aggregated.implCount;
-  let verifyCount = node.entry.aggregated.verifyCount;
-
-  // Add children's aggregated stats
-  for (const child of node.children) {
-    const childStats = aggregateCoverage(child);
-    total += childStats.total;
-    implCount += childStats.implCount;
-    verifyCount += childStats.verifyCount;
-  }
-
-  return { total, implCount, verifyCount };
+  return {
+    total: node.entry.aggregated.total,
+    implCount: node.entry.aggregated.implCount,
+    implTotal: node.entry.aggregated.implTotal,
+    verifyCount: node.entry.aggregated.verifyCount,
+    verifyTotal: node.entry.aggregated.verifyTotal,
+  };
 }
 
 // Recursive outline tree renderer
@@ -165,8 +161,11 @@ function OutlineTree({
       // Aggregate coverage from this node and all descendants
       const coverage = aggregateCoverage(node);
       const showCoverage = coverage.total > 0;
-      const isComplete = coverage.total > 0 && coverage.implCount === coverage.total;
-      const isIncomplete = coverage.total > 0 && coverage.implCount < coverage.total;
+      const isComplete =
+        coverage.total > 0 &&
+        coverage.implCount === coverage.implTotal &&
+        coverage.verifyCount === coverage.verifyTotal;
+      const isIncomplete = coverage.total > 0 && !isComplete;
 
       return html`
         <li
@@ -190,16 +189,16 @@ function OutlineTree({
               <span class="toc-badges" aria-label="coverage">
                 <${CoverageArc}
                   count=${coverage.implCount}
-                  total=${coverage.total}
+                  total=${coverage.implTotal}
                   color="var(--green)"
-                  title="Impl: ${coverage.implCount}/${coverage.total}"
+                  title="Impl: ${coverage.implCount}/${coverage.implTotal}"
                   hideNumber
                 />
                 <${CoverageArc}
                   count=${coverage.verifyCount}
-                  total=${coverage.total}
+                  total=${coverage.verifyTotal}
                   color="var(--blue)"
-                  title="Tests: ${coverage.verifyCount}/${coverage.total}"
+                  title="Tests: ${coverage.verifyCount}/${coverage.verifyTotal}"
                   hideNumber
                 />
               </span>
@@ -309,15 +308,19 @@ export function SpecView({
   const overallCoverage = useMemo(() => {
     let total = 0;
     let implCount = 0;
+    let implTotal = 0;
     let verifyCount = 0;
+    let verifyTotal = 0;
     for (const node of outlineTree) {
       total += node.entry.aggregated.total;
       implCount += node.entry.aggregated.implCount;
+      implTotal += node.entry.aggregated.implTotal;
       verifyCount += node.entry.aggregated.verifyCount;
+      verifyTotal += node.entry.aggregated.verifyTotal;
     }
-    const implPct = total > 0 ? Math.round((implCount / total) * 100) : 0;
-    const verifyPct = total > 0 ? Math.round((verifyCount / total) * 100) : 0;
-    return { total, implCount, verifyCount, implPct, verifyPct };
+    const implPct = coveragePercent(implCount, implTotal);
+    const verifyPct = coveragePercent(verifyCount, verifyTotal);
+    return { total, implCount, implTotal, verifyCount, verifyTotal, implPct, verifyPct };
   }, [outlineTree]);
 
   // Concatenate all sections' HTML (sections are pre-sorted by weight on server)

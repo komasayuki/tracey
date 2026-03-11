@@ -34,6 +34,7 @@ use marq::{
 use crate::config::Config;
 use crate::heading_requirements::render_with_heading_requirements;
 use crate::markdown_anchor::github_requirement_anchor;
+use crate::rule_coverage_policy::{rule_display_status, rule_needs_impl, rule_needs_verify};
 use crate::rule_id_validation::is_valid_rule_id;
 use crate::rule_suggestions::suggest_similar_rule_ids;
 use crate::search;
@@ -171,6 +172,12 @@ struct RuleCoverage {
     status: &'static str, // "covered", "partial", "stale", "uncovered"
     impl_refs: Vec<ApiCodeRef>,
     verify_refs: Vec<ApiCodeRef>,
+}
+
+fn not_needed_badge_html(kind_class: &str, title: &str) -> String {
+    format!(
+        r#"<span class="req-badge {kind_class} req-not-needed" title="{title}">Not Needed</span>"#
+    )
 }
 
 /// Custom rule handler that renders rules with coverage status and refs
@@ -358,7 +365,12 @@ impl ReqHandler for TraceyRuleHandler {
             ));
 
             // Implementation badge
-            if let Some(cov) = coverage {
+            if !rule_needs_impl(&rule_id) {
+                badges_html.push_str(&not_needed_badge_html(
+                    "req-impl",
+                    "Implementation not needed for this requirement",
+                ));
+            } else if let Some(cov) = coverage {
                 if !cov.impl_refs.is_empty() {
                     let r = &cov.impl_refs[0];
                     let filename = r.file.rsplit('/').next().unwrap_or(&r.file);
@@ -390,8 +402,15 @@ impl ReqHandler for TraceyRuleHandler {
                         self.spec_name, self.impl_name, r.file, r.line, r.file, r.line, all_refs_json, r.file, r.line, filename, r.line, count_suffix
                     ));
                 }
+            }
 
-                // r[impl dashboard.links.verify-refs]
+            // r[impl dashboard.links.verify-refs]
+            if !rule_needs_verify(&rule_id) {
+                badges_html.push_str(&not_needed_badge_html(
+                    "req-test",
+                    "Verification not needed for this requirement",
+                ));
+            } else if let Some(cov) = coverage {
                 if !cov.verify_refs.is_empty() {
                     let r = &cov.verify_refs[0];
                     let filename = r.file.rsplit('/').next().unwrap_or(&r.file);
@@ -2471,22 +2490,10 @@ pub async fn render_spec_content_for_impl(
     let mut coverage: BTreeMap<String, RuleCoverage> = BTreeMap::new();
     for rule in &forward.rules {
         let rule_id_string = rule.id.to_string();
-        let has_impl = !rule.impl_refs.is_empty();
-        let has_verify = !rule.verify_refs.is_empty();
-        let has_stale = rule.is_stale;
-        let status = if has_stale {
-            "stale"
-        } else if has_impl && has_verify {
-            "covered"
-        } else if has_impl || has_verify {
-            "partial"
-        } else {
-            "uncovered"
-        };
         coverage.insert(
             rule_id_string,
             RuleCoverage {
-                status,
+                status: rule_display_status(rule),
                 impl_refs: rule.impl_refs.clone(),
                 verify_refs: rule.verify_refs.clone(),
             },
@@ -2536,14 +2543,21 @@ fn build_outline(
             DocElement::Req(r) => {
                 if let Some(idx) = current_heading_idx {
                     let cov = coverage.get(&r.id.to_string());
-                    let has_impl = cov.is_some_and(|c| !c.impl_refs.is_empty());
-                    let has_verify = cov.is_some_and(|c| !c.verify_refs.is_empty());
-
                     entries[idx].coverage.total += 1;
-                    if has_impl {
+                    if rule_needs_impl(&r.id.to_string()) {
+                        entries[idx].coverage.impl_total += 1;
+                    }
+                    if rule_needs_verify(&r.id.to_string()) {
+                        entries[idx].coverage.verify_total += 1;
+                    }
+                    if cov.is_some_and(|c| !c.impl_refs.is_empty())
+                        && rule_needs_impl(&r.id.to_string())
+                    {
                         entries[idx].coverage.impl_count += 1;
                     }
-                    if has_verify {
+                    if cov.is_some_and(|c| !c.verify_refs.is_empty())
+                        && rule_needs_verify(&r.id.to_string())
+                    {
                         entries[idx].coverage.verify_count += 1;
                     }
                 }

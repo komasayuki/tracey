@@ -14,7 +14,7 @@ pub use tracey_api::*;
 /// Protocol version — bump this whenever any RPC method is added, removed, or changed.
 /// The daemon writes this into its PID file; connectors compare it before connecting
 /// to detect stale daemons running an incompatible build.
-pub const PROTOCOL_VERSION: u32 = 4;
+pub const PROTOCOL_VERSION: u32 = 5;
 
 // ============================================================================
 // Request/Response types for the TraceyDaemon service
@@ -190,6 +190,8 @@ pub struct ImplStatus {
     pub spec: String,
     pub impl_name: String,
     pub total_rules: usize,
+    pub impl_total_rules: usize,
+    pub verify_total_rules: usize,
     /// Rules with at least one exact implementation reference (not stale).
     pub covered_rules: usize,
     /// Rules where any reference is stale (points to an older rule version).

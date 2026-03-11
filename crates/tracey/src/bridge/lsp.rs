@@ -17,6 +17,7 @@ use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use crate::daemon::{DaemonClient, new_client};
+use crate::rule_coverage_policy::{rule_needs_impl, rule_needs_verify};
 use tracey_core::{RefVerb, parse_rule_id};
 use tracey_proto::*;
 
@@ -672,8 +673,18 @@ impl LanguageServer for Backend {
         }
 
         // Summary counts
-        if info.impl_refs.is_empty() && info.verify_refs.is_empty() {
-            markdown.push_str("\n\n*No implementations or verifications*");
+        let needs_impl = rule_needs_impl(&info.rule_id.base);
+        let needs_verify = rule_needs_verify(&info.rule_id.base);
+        if (needs_impl && info.impl_refs.is_empty())
+            || (needs_verify && info.verify_refs.is_empty())
+        {
+            let summary = match (needs_impl, needs_verify) {
+                (true, true) => "No implementations or verifications",
+                (true, false) => "No implementations",
+                (false, true) => "No verifications",
+                (false, false) => "No required coverage",
+            };
+            markdown.push_str(&format!("\n\n*{}*", summary));
         }
 
         // r[impl lsp.hover.tail-diff.format+2]
