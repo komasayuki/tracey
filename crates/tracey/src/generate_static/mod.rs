@@ -59,7 +59,7 @@ fn write_static_assets(output_dir: &Path, snapshot: &snapshot::StaticSnapshot) -
 }
 
 fn dashboard_runtime_js() -> String {
-    INDEX_JS
+    let runtime = INDEX_JS
         .replace(
             "window.location.pathname",
             "window.__TRACEY_EFFECTIVE_PATHNAME__()",
@@ -67,7 +67,8 @@ fn dashboard_runtime_js() -> String {
         .replace(
             "location.pathname",
             "window.__TRACEY_EFFECTIVE_PATHNAME__()",
-        )
+        );
+    format!("(function() {{\n{runtime}\n}})();\n")
 }
 
 fn dashboard_runtime_css() -> String {
@@ -128,7 +129,7 @@ fn render_page_html(prefix: &str, route_path: &str) -> String {
     }};
   </script>
   <script src="{data_js_path}"></script>
-  <script src="{runtime_js_path}"></script>
+  <script defer src="{runtime_js_path}"></script>
 </head>
 <body>
   <div id="app"><div class="loading">Loading...</div></div>
