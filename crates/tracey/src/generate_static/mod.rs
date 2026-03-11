@@ -13,8 +13,14 @@ const STATIC_DATA_JSON_PATH: &str = "tracey-static/api-data.json";
 const STATIC_DATA_JS_PATH: &str = "tracey-static/api-data.js";
 const STATIC_RUNTIME_JS_PATH: &str = "tracey-static/runtime.js";
 const STATIC_RUNTIME_CSS_PATH: &str = "tracey-static/runtime.css";
-const STATIC_HIDE_EDIT_CSS: &str =
-    r#".req-badges-right,.req-badge.req-edit{display:none!important;}"#;
+const STATIC_HIDE_UI_CSS: &str = r#"
+.req-badges-right,
+.req-badge.req-edit,
+.stats-bar,
+.tree-file-badge {
+  display: none !important;
+}
+"#;
 
 pub(crate) async fn generate(project_root: &Path, output_dir: &Path) -> Result<()> {
     let snapshot = snapshot::build(project_root).await?;
@@ -72,7 +78,7 @@ fn dashboard_runtime_js() -> String {
 }
 
 fn dashboard_runtime_css() -> String {
-    format!("{INDEX_CSS}\n{STATIC_HIDE_EDIT_CSS}\n")
+    format!("{INDEX_CSS}\n{STATIC_HIDE_UI_CSS}\n")
 }
 
 fn write_pages(output_dir: &Path, config: &tracey_api::ApiConfig) -> Result<()> {
@@ -188,7 +194,8 @@ mod tests {
     #[test]
     fn static_output_hides_edit_button() {
         let css = dashboard_runtime_css();
-        assert!(css.contains(".req-badges-right,.req-badge.req-edit{display:none!important;}"));
+        assert!(css.contains(".req-badges-right"));
+        assert!(css.contains(".req-badge.req-edit"));
     }
 
     #[test]
@@ -197,5 +204,12 @@ mod tests {
         assert!(html.contains("./tracey-static/runtime.css"));
         assert!(html.contains("./tracey-static/runtime.js"));
         assert!(html.contains("window.__TRACEY_STATIC_BOOTSTRAP__"));
+    }
+
+    #[test]
+    fn static_output_hides_sources_page_stats() {
+        let css = dashboard_runtime_css();
+        assert!(css.contains(".stats-bar"));
+        assert!(css.contains(".tree-file-badge"));
     }
 }
