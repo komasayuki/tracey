@@ -6,6 +6,27 @@ pub(super) fn runtime_prelude() -> String {
   const STATIC_ROUTE = bootstrap.routePath || '/';
   const originalFetch = window.fetch.bind(window);
   let loaded = null;
+  const STATIC_ROUTE_BODY_CLASSES = [
+    'tracey-static-route-default',
+    'tracey-static-route-spec',
+    'tracey-static-route-coverage',
+    'tracey-static-route-sources',
+  ];
+
+  function routeBodyClass(route) {
+    if ((route || '').endsWith('/sources')) return 'tracey-static-route-sources';
+    if ((route || '').endsWith('/coverage')) return 'tracey-static-route-coverage';
+    if ((route || '').endsWith('/spec')) return 'tracey-static-route-spec';
+    return 'tracey-static-route-default';
+  }
+
+  function applyRouteBodyClass(route) {
+    if (!document.body) return;
+    for (const className of STATIC_ROUTE_BODY_CLASSES) {
+      document.body.classList.remove(className);
+    }
+    document.body.classList.add(routeBodyClass(route));
+  }
 
   function toRoutePath(url) {
     if (!url) return STATIC_ROUTE || '/';
@@ -34,11 +55,13 @@ pub(super) fn runtime_prelude() -> String {
 
   if (window.location.protocol === 'file:') {
     window.__TRACEY_CURRENT_ROUTE__ = window.__TRACEY_CURRENT_ROUTE__ || STATIC_ROUTE || '/';
+    applyRouteBodyClass(window.__TRACEY_CURRENT_ROUTE__);
     const historyObj = window.history;
     const rawPushState = historyObj.pushState.bind(historyObj);
     const rawReplaceState = historyObj.replaceState.bind(historyObj);
     historyObj.pushState = function(state, title, url) {
       window.__TRACEY_CURRENT_ROUTE__ = toRoutePath(url);
+      applyRouteBodyClass(window.__TRACEY_CURRENT_ROUTE__);
       try {
         return rawPushState(state, title, toBrowserHistoryUrl(url));
       } catch (_) {
@@ -47,12 +70,16 @@ pub(super) fn runtime_prelude() -> String {
     };
     historyObj.replaceState = function(state, title, url) {
       window.__TRACEY_CURRENT_ROUTE__ = toRoutePath(url);
+      applyRouteBodyClass(window.__TRACEY_CURRENT_ROUTE__);
       try {
         return rawReplaceState(state, title, toBrowserHistoryUrl(url));
       } catch (_) {
         return null;
       }
     };
+    window.addEventListener('popstate', function() {
+      applyRouteBodyClass(window.__TRACEY_CURRENT_ROUTE__ || STATIC_ROUTE || '/');
+    });
   }
 
   window.__TRACEY_EFFECTIVE_PATHNAME__ = function() {
