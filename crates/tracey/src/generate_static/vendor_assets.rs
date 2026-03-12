@@ -5,8 +5,8 @@ pub(super) struct StaticAsset {
 
 pub(super) const VENDOR_ASSETS: &[StaticAsset] = &[
     StaticAsset {
-        relative_path: "vendor/NOTICE.md",
-        bytes: include_bytes!("../bridge/http/dashboard/public/vendor/NOTICE.md"),
+        relative_path: "vendor/NOTICE.txt",
+        bytes: include_bytes!("../bridge/http/dashboard/public/vendor/NOTICE.txt"),
     },
     StaticAsset {
         relative_path: "vendor/arborium/base.css",

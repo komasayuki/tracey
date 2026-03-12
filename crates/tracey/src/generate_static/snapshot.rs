@@ -12,9 +12,10 @@ use crate::generate_static::sanitize::{
     sanitize_static_config, sanitize_static_forward, sanitize_static_spec_content,
 };
 
-pub(super) async fn build(project_root: &Path) -> Result<StaticBundle> {
+pub(super) async fn build(project_root: &Path, output_dir: &Path) -> Result<StaticBundle> {
     let config_path = project_root.join(".config/tracey/config.styx");
-    let (config, mut config_error) = load_config_with_error(&config_path)?;
+    let (mut config, mut config_error) = load_config_with_error(&config_path)?;
+    exclude_generate_output(project_root, output_dir, &mut config);
 
     let data = match crate::data::build_dashboard_data(project_root, &config, 1, true).await {
         Ok(data) => data,
@@ -24,14 +25,11 @@ pub(super) async fn build(project_root: &Path) -> Result<StaticBundle> {
                 Some(prev) => format!("{prev}\n\n{message}"),
                 None => message,
             });
-            crate::data::build_dashboard_data(
-                project_root,
-                &crate::config::Config::default(),
-                1,
-                true,
-            )
-            .await
-            .wrap_err("Failed to build fallback dashboard data")?
+            let mut fallback = crate::config::Config::default();
+            exclude_generate_output(project_root, output_dir, &mut fallback);
+            crate::data::build_dashboard_data(project_root, &fallback, 1, true)
+                .await
+                .wrap_err("Failed to build fallback dashboard data")?
         }
     };
 
@@ -102,6 +100,29 @@ pub(super) async fn build(project_root: &Path) -> Result<StaticBundle> {
         entry_chunks,
         file_chunks,
     })
+}
+
+fn exclude_generate_output(
+    project_root: &Path,
+    output_dir: &Path,
+    config: &mut crate::config::Config,
+) {
+    let Ok(relative) = output_dir.strip_prefix(project_root) else {
+        return;
+    };
+    let relative = relative.to_string_lossy().replace('\\', "/");
+    if relative.is_empty() || relative == "." {
+        return;
+    }
+
+    let pattern = format!("{relative}/**");
+    for spec in &mut config.specs {
+        for impl_config in &mut spec.impls {
+            if !impl_config.exclude.contains(&pattern) {
+                impl_config.exclude.push(pattern.clone());
+            }
+        }
+    }
 }
 
 fn canonicalize_entry(
@@ -234,4 +255,49 @@ fn build_file_chunks(
 
     chunks.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
     Ok(chunks)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use crate::config::{Config, Impl, SpecConfig};
+
+    use super::exclude_generate_output;
+
+    #[test]
+    fn generate_output_under_project_root_is_excluded() {
+        let mut config = Config {
+            specs: vec![SpecConfig {
+                name: "spec".to_string(),
+                prefix: None,
+                source_url: None,
+                include: vec!["docs/**/*.md".to_string()],
+                impls: vec![Impl {
+                    name: "rust".to_string(),
+                    include: vec!["**/*".to_string()],
+                    exclude: vec![],
+                    test_include: vec![],
+                }],
+            }],
+        };
+
+        exclude_generate_output(
+            Path::new("/repo"),
+            Path::new("/repo/docs/traceability_report"),
+            &mut config,
+        );
+
+        assert_eq!(
+            config.specs[0].impls[0].exclude,
+            vec!["docs/traceability_report/**".to_string()]
+        );
+    }
+
+    #[test]
+    fn output_outside_project_root_is_not_excluded() {
+        let mut config = Config::default();
+        exclude_generate_output(Path::new("/repo"), Path::new("/tmp/report"), &mut config);
+        assert!(config.specs.is_empty());
+    }
 }

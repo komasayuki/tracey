@@ -12,8 +12,8 @@ mod snapshot;
 mod vendor_assets;
 
 pub(crate) async fn generate(project_root: &Path, output_dir: &Path) -> Result<()> {
-    let bundle = snapshot::build(project_root).await?;
     prepare_output_dir(output_dir)?;
+    let bundle = snapshot::build(project_root, output_dir).await?;
     assets::write_site(output_dir, &bundle)?;
     Ok(())
 }
