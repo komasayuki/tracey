@@ -9,6 +9,8 @@ import {
   isOutlineCoverageComplete,
   isOutlineCoverageIncomplete,
   shouldShowOutlineCoverage,
+  shouldShowOutlineImplCoverage,
+  shouldShowOutlineVerifyCoverage,
 } from "../outline-coverage.js";
 import type { OutlineEntry, SpecViewProps, FileContent } from "../types";
 import { MarkdownEditor } from "../components/MarkdownEditor";
@@ -165,6 +167,8 @@ function OutlineTree({
 
       const coverage = aggregateCoverage(node);
       const showCoverage = shouldShowOutlineCoverage(h);
+      const showImplCoverage = shouldShowOutlineImplCoverage(h);
+      const showVerifyCoverage = shouldShowOutlineVerifyCoverage(h);
       const isComplete = isOutlineCoverageComplete(h, coverage);
       const isIncomplete = isOutlineCoverageIncomplete(h, coverage);
 
@@ -188,20 +192,22 @@ function OutlineTree({
             ${showCoverage &&
             html`
               <span class="toc-badges" aria-label="coverage">
-                <${CoverageArc}
+                ${showImplCoverage &&
+                html`<${CoverageArc}
                   count=${coverage.implCount}
                   total=${coverage.implTotal}
                   color="var(--green)"
                   title="Impl: ${coverage.implCount}/${coverage.implTotal}"
                   hideNumber
-                />
-                <${CoverageArc}
+                />`}
+                ${showVerifyCoverage &&
+                html`<${CoverageArc}
                   count=${coverage.verifyCount}
                   total=${coverage.verifyTotal}
                   color="var(--blue)"
                   title="Tests: ${coverage.verifyCount}/${coverage.verifyTotal}"
                   hideNumber
-                />
+                />`}
               </span>
             `}
           </a>

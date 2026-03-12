@@ -3,6 +3,15 @@ export function shouldShowOutlineCoverage(entry) {
   return entry.coverage.total > 0;
 }
 
+// 要件 prefix に応じて、必要な側の arc だけを表示する。
+export function shouldShowOutlineImplCoverage(entry) {
+  return entry.coverage.implTotal > 0;
+}
+
+export function shouldShowOutlineVerifyCoverage(entry) {
+  return entry.coverage.verifyTotal > 0;
+}
+
 export function isOutlineCoverageComplete(entry, aggregated) {
   return (
     shouldShowOutlineCoverage(entry) &&
