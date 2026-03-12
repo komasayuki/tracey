@@ -1,7 +1,6 @@
 pub(super) fn runtime_prelude() -> String {
     r#"(function() {
   const bootstrap = window.__TRACEY_STATIC_BOOTSTRAP__ || {};
-  const DATA_PATH = bootstrap.dataPath || './tracey-static/api-data.json';
   const DATA_KEY = '__TRACEY_STATIC_SNAPSHOT__';
   const STATIC_ROUTE = bootstrap.routePath || '/';
   const originalFetch = window.fetch.bind(window);
@@ -119,15 +118,11 @@ pub(super) fn runtime_prelude() -> String {
   async function loadSnapshot() {
     if (loaded) return loaded;
     const inlined = window[DATA_KEY];
-    if (inlined) {
-      loaded = Promise.resolve(normalizeSnapshot(inlined));
+    if (!inlined) {
+      loaded = Promise.reject(new Error('Static snapshot script was not loaded'));
       return loaded;
     }
-
-    // フォールバック: http(s) 配信時にJSONを直接読む。
-    loaded = originalFetch(DATA_PATH, { cache: 'no-store' })
-      .then((res) => res.json())
-      .then((raw) => normalizeSnapshot(raw));
+    loaded = Promise.resolve(normalizeSnapshot(inlined));
     return loaded;
   }
 

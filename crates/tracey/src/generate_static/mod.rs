@@ -4,12 +4,12 @@ use std::path::{Path, PathBuf};
 use eyre::{Result, WrapErr, eyre};
 
 mod rendering;
+mod sanitize;
 mod shim;
 mod snapshot;
 
 const INDEX_CSS: &str = include_str!("../bridge/http/dashboard/dist/assets/index.css");
 const INDEX_JS: &str = include_str!("../bridge/http/dashboard/dist/assets/index.js");
-const STATIC_DATA_JSON_PATH: &str = "tracey-static/api-data.json";
 const STATIC_DATA_JS_PATH: &str = "tracey-static/api-data.js";
 const STATIC_RUNTIME_JS_PATH: &str = "tracey-static/runtime.js";
 const STATIC_RUNTIME_CSS_PATH: &str = "tracey-static/runtime.css";
@@ -56,8 +56,6 @@ fn write_static_assets(output_dir: &Path, snapshot: &snapshot::StaticSnapshot) -
 
     let json =
         facet_json::to_string_pretty(snapshot).map_err(|e| eyre!("JSON serialize failed: {e}"))?;
-    fs::write(static_dir.join("api-data.json"), &json)
-        .wrap_err("Failed to write static API data")?;
     fs::write(
         static_dir.join("api-data.js"),
         format!("window.__TRACEY_STATIC_SNAPSHOT__ = {json};\n"),
@@ -111,7 +109,6 @@ fn write_pages(output_dir: &Path, config: &tracey_api::ApiConfig) -> Result<()> 
 fn render_page_html(prefix: &str, route_path: &str) -> String {
     let body_class = route_body_class(route_path);
     let css_path = format!("{prefix}{STATIC_RUNTIME_CSS_PATH}");
-    let data_path = format!("{prefix}{STATIC_DATA_JSON_PATH}");
     let data_js_path = format!("{prefix}{STATIC_DATA_JS_PATH}");
     let runtime_js_path = format!("{prefix}{STATIC_RUNTIME_JS_PATH}");
     format!(
@@ -134,8 +131,7 @@ fn render_page_html(prefix: &str, route_path: &str) -> String {
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <script>
     window.__TRACEY_STATIC_BOOTSTRAP__ = {{
-      routePath: "{route_path}",
-      dataPath: "{data_path}"
+      routePath: "{route_path}"
     }};
   </script>
   <script src="{data_js_path}"></script>
@@ -220,8 +216,10 @@ mod tests {
         let html = render_page_html("./", "/tracey/main/spec");
         assert!(html.contains("./tracey-static/runtime.css"));
         assert!(html.contains("./tracey-static/runtime.js"));
+        assert!(html.contains("./tracey-static/api-data.js"));
         assert!(html.contains("window.__TRACEY_STATIC_BOOTSTRAP__"));
         assert!(html.contains(r#"class="tracey-static-route-spec""#));
+        assert!(!html.contains("api-data.json"));
     }
 
     #[test]

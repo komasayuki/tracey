@@ -8,6 +8,7 @@ use tracey_api::{
 };
 
 use crate::generate_static::rendering::{arborium_language, display_path, html_escape};
+use crate::generate_static::sanitize::{sanitize_static_config, sanitize_static_paths};
 
 #[derive(Debug, Clone, Facet)]
 pub(super) struct StaticSnapshot {
@@ -92,8 +93,10 @@ pub(super) async fn build(project_root: &Path) -> Result<StaticSnapshot> {
             continue;
         };
 
-        let spec_content =
-            render_spec_content(project_root, &data, spec, impl_name, forward).await?;
+        let mut forward = forward.clone();
+        let mut spec_content =
+            render_spec_content(project_root, &data, spec, impl_name, &forward).await?;
+        sanitize_static_paths(project_root, &mut forward, &mut spec_content);
         let files = build_file_entries(project_root, &data, spec, impl_name, &mut highlighter)?;
 
         for rule in &forward.rules {
@@ -117,7 +120,7 @@ pub(super) async fn build(project_root: &Path) -> Result<StaticSnapshot> {
         entries.push(ImplSnapshot {
             spec: spec.clone(),
             impl_name: impl_name.clone(),
-            forward: forward.clone(),
+            forward,
             reverse,
             spec_content,
             files,
@@ -128,7 +131,7 @@ pub(super) async fn build(project_root: &Path) -> Result<StaticSnapshot> {
 
     let mut snapshot = StaticSnapshot {
         version: data.version,
-        config: data.config,
+        config: sanitize_static_config(data.config),
         health: StaticHealth { config_error },
         entries,
         search_rules: search_rules.into_values().collect(),
