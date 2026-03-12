@@ -15,9 +15,12 @@ const STATIC_RUNTIME_JS_PATH: &str = "tracey-static/runtime.js";
 const STATIC_RUNTIME_CSS_PATH: &str = "tracey-static/runtime.css";
 const STATIC_HIDE_UI_CSS: &str = r#"
 .req-badges-right,
-.req-badge.req-edit,
-.stats-bar,
-.tree-file-badge {
+.req-badge.req-edit {
+  display: none !important;
+}
+
+.tracey-static-route-sources .stats-bar,
+.tracey-static-route-sources .tree-file-badge {
   display: none !important;
 }
 "#;
@@ -106,6 +109,7 @@ fn write_pages(output_dir: &Path, config: &tracey_api::ApiConfig) -> Result<()> 
 }
 
 fn render_page_html(prefix: &str, route_path: &str) -> String {
+    let body_class = route_body_class(route_path);
     let css_path = format!("{prefix}{STATIC_RUNTIME_CSS_PATH}");
     let data_path = format!("{prefix}{STATIC_DATA_JSON_PATH}");
     let data_js_path = format!("{prefix}{STATIC_DATA_JS_PATH}");
@@ -137,12 +141,25 @@ fn render_page_html(prefix: &str, route_path: &str) -> String {
   <script src="{data_js_path}"></script>
   <script defer src="{runtime_js_path}"></script>
 </head>
-<body>
+<body class="{body_class}">
   <div id="app"><div class="loading">Loading...</div></div>
 </body>
 </html>
 "#
     )
+}
+
+fn route_body_class(route_path: &str) -> &'static str {
+    // 静的生成物だけで view ごとの表示差分を出すための class。
+    if route_path.ends_with("/sources") {
+        "tracey-static-route-sources"
+    } else if route_path.ends_with("/coverage") {
+        "tracey-static-route-coverage"
+    } else if route_path.ends_with("/spec") {
+        "tracey-static-route-spec"
+    } else {
+        "tracey-static-route-default"
+    }
 }
 
 fn default_route_path(config: &tracey_api::ApiConfig) -> String {
@@ -189,7 +206,7 @@ fn build_routes(config: &tracey_api::ApiConfig) -> Vec<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{dashboard_runtime_css, render_page_html};
+    use super::{dashboard_runtime_css, render_page_html, route_body_class};
 
     #[test]
     fn static_output_hides_edit_button() {
@@ -204,12 +221,29 @@ mod tests {
         assert!(html.contains("./tracey-static/runtime.css"));
         assert!(html.contains("./tracey-static/runtime.js"));
         assert!(html.contains("window.__TRACEY_STATIC_BOOTSTRAP__"));
+        assert!(html.contains(r#"class="tracey-static-route-spec""#));
     }
 
     #[test]
     fn static_output_hides_sources_page_stats() {
         let css = dashboard_runtime_css();
-        assert!(css.contains(".stats-bar"));
-        assert!(css.contains(".tree-file-badge"));
+        assert!(css.contains(".tracey-static-route-sources .stats-bar"));
+        assert!(css.contains(".tracey-static-route-sources .tree-file-badge"));
+    }
+
+    #[test]
+    fn route_body_class_changes_by_view() {
+        assert_eq!(
+            route_body_class("/tracey/main/sources"),
+            "tracey-static-route-sources"
+        );
+        assert_eq!(
+            route_body_class("/tracey/main/coverage"),
+            "tracey-static-route-coverage"
+        );
+        assert_eq!(
+            route_body_class("/tracey/main/spec"),
+            "tracey-static-route-spec"
+        );
     }
 }
