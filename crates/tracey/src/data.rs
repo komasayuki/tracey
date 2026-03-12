@@ -2592,7 +2592,9 @@ fn build_outline(
                 let child_agg = entries[j].aggregated.clone();
                 entries[i].aggregated.total += child_agg.total;
                 entries[i].aggregated.impl_count += child_agg.impl_count;
+                entries[i].aggregated.impl_total += child_agg.impl_total;
                 entries[i].aggregated.verify_count += child_agg.verify_count;
+                entries[i].aggregated.verify_total += child_agg.verify_total;
             }
             j += 1;
         }

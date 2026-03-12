@@ -5,6 +5,11 @@ import { EDITORS } from "../config";
 import { useSpec } from "../hooks";
 import { CoverageArc, html, showRefsPopup } from "../main";
 import { resolveDashboardLink } from "../navigation.js";
+import {
+  isOutlineCoverageComplete,
+  isOutlineCoverageIncomplete,
+  shouldShowOutlineCoverage,
+} from "../outline-coverage.js";
 import type { OutlineEntry, SpecViewProps, FileContent } from "../types";
 import { MarkdownEditor } from "../components/MarkdownEditor";
 import { InlineEditor } from "../components/InlineEditor";
@@ -158,14 +163,10 @@ function OutlineTree({
       const hasChildren = node.children.length > 0;
       const h = node.entry;
 
-      // Aggregate coverage from this node and all descendants
       const coverage = aggregateCoverage(node);
-      const showCoverage = coverage.total > 0;
-      const isComplete =
-        coverage.total > 0 &&
-        coverage.implCount === coverage.implTotal &&
-        coverage.verifyCount === coverage.verifyTotal;
-      const isIncomplete = coverage.total > 0 && !isComplete;
+      const showCoverage = shouldShowOutlineCoverage(h);
+      const isComplete = isOutlineCoverageComplete(h, coverage);
+      const isIncomplete = isOutlineCoverageIncomplete(h, coverage);
 
       return html`
         <li

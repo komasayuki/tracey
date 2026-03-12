@@ -66,6 +66,47 @@ fn needs_verify() {}
     (tmp, root)
 }
 
+fn setup_nested_outline_fixture() -> (TempDir, PathBuf) {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().to_path_buf();
+
+    fs::create_dir_all(root.join(".config/tracey")).unwrap();
+    fs::create_dir_all(root.join("docs/spec")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+
+    let spec = r#"# Parent Section
+
+## Child Requirement Section
+
+r[req.child.rule]
+Child rule.
+"#;
+    fs::write(root.join("docs/spec/spec.md"), spec).unwrap();
+
+    let source = r#"// r[impl req.child.rule]
+// r[verify req.child.rule]
+fn covered_child() {}
+"#;
+    fs::write(root.join("src/lib.rs"), source).unwrap();
+
+    let config = r#"specs (
+  {
+    name test-spec
+    include (docs/spec/**/*.md)
+    impls (
+      {
+        name main
+        include (src/**/*.rs)
+      }
+    )
+  }
+)
+"#;
+    fs::write(root.join(".config/tracey/config.styx"), config).unwrap();
+
+    (tmp, root)
+}
+
 #[tokio::test]
 async fn prefix_requirements_use_prefix_aware_coverage_totals() {
     let (_tmp, root) = setup_fixture();
@@ -125,4 +166,33 @@ async fn prefix_requirements_flow_into_spec_outline_totals() {
     assert_eq!(root_entry.aggregated.verify_total, 4);
     assert_eq!(root_entry.aggregated.impl_count, 3);
     assert_eq!(root_entry.aggregated.verify_count, 2);
+}
+
+#[tokio::test]
+async fn outline_parent_aggregates_child_totals_even_without_direct_rules() {
+    let (_tmp, root) = setup_nested_outline_fixture();
+    let config_path = root.join(".config/tracey/config.styx");
+    let config = tracey::load_config(&config_path).unwrap();
+    let data = build_dashboard_data(&root, &config, 1, true).await.unwrap();
+    let forward = data
+        .forward_by_impl
+        .get(&("test-spec".to_string(), "main".to_string()))
+        .unwrap();
+    let include = vec!["docs/spec/**/*.md".to_string()];
+    let spec = render_spec_content_for_impl(&root, &include, "test-spec", "main", forward)
+        .await
+        .unwrap();
+
+    let parent = &spec.outline[0];
+    let child = &spec.outline[1];
+
+    assert_eq!(parent.coverage.total, 0);
+    assert_eq!(parent.aggregated.total, 1);
+    assert_eq!(parent.aggregated.impl_total, 1);
+    assert_eq!(parent.aggregated.verify_total, 1);
+    assert_eq!(parent.aggregated.impl_count, 1);
+    assert_eq!(parent.aggregated.verify_count, 1);
+
+    assert_eq!(child.coverage.total, 1);
+    assert_eq!(child.aggregated.total, 1);
 }
