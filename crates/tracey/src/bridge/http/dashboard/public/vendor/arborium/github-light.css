@@ -1,0 +1,72 @@
+/* GitHub Light theme (light) - generated from TOML */
+/* Source: https://github.com/primer/github-vscode-theme */
+/* Defines --arb-*-light variables */
+
+:root {
+  --arb-at-light: #0550ae;
+  --arb-co-light: #0550ae;
+  --arb-co-light: #0550ae;
+  --arb-fb-light: #8250df;
+  --arb-f-light: #8250df;
+  --arb-f-light: #8250df;
+  --arb-k-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-o-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-o-light: #cf222e;
+  --arb-pr-light: #0550ae;
+  --arb-p-light: #24292f;
+  --arb-p-light: #24292f;
+  --arb-p-light: #24292f;
+  --arb-p-light: #0550ae;
+  --arb-s-light: #0a3069;
+  --arb-s-light: #cf222e;
+  --arb-tg-light: #116329;
+  --arb-tg-light: #116329;
+  --arb-err-light: #116329;
+  --arb-t-light: #953800;
+  --arb-t-light: #953800;
+  --arb-t-light: #953800;
+  --arb-v-light: #24292f;
+  --arb-v-light: #953800;
+  --arb-v-light: #953800;
+  --arb-c-light: #6e7781;
+  --arb-c-light: #6e7781;
+  --arb-m-light: #0550ae;
+  --arb-l-light: #8250df;
+  --arb-da-light: #116329;
+  --arb-dd-light: #cf222e;
+  --arb-n-light: #0550ae;
+  --arb-tl-light: #24292f;
+  --arb-em-light-style: italic;
+  --arb-st-light-weight: bold;
+  --arb-tu-light: #0969da;
+  --arb-tu-light-decoration: underline;
+  --arb-tr-light: #8250df;
+  --arb-se-light: #0550ae;
+  --arb-tt-light: #8250df;
+  --arb-tt-light-weight: bold;
+  --arb-ts-light-decoration: line-through;
+  --arb-k-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-ch-light: #cf222e;
+  --arb-pr-light: #953800;
+  --arb-f-light: #8250df;
+  --arb-t-light: #953800;
+  --arb-f-light: #8250df;
+  --arb-k-light: #cf222e;
+  --arb-k-light: #cf222e;
+  --arb-sr-light: #cf222e;
+  --arb-n-light: #0550ae;
+  --arb-bo-light: #0550ae;
+}

@@ -1,0 +1,72 @@
+/* Kanagawa Dragon theme (dark) - generated from TOML */
+/* Source: https://github.com/rebelot/kanagawa.nvim */
+/* Defines --arb-*-dark variables */
+
+:root {
+  --arb-at-dark: #c4b28a;
+  --arb-co-dark: #b6927b;
+  --arb-co-dark: #b6927b;
+  --arb-fb-dark: #7aa89f;
+  --arb-f-dark: #8ba4b0;
+  --arb-f-dark: #8ba4b0;
+  --arb-k-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-o-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-o-dark: #c4746e;
+  --arb-pr-dark: #c4b28a;
+  --arb-p-dark: #c5c9c5;
+  --arb-p-dark: #c5c9c5;
+  --arb-p-dark: #c5c9c5;
+  --arb-p-dark: #7aa89f;
+  --arb-s-dark: #8a9a7b;
+  --arb-s-dark: #a292a3;
+  --arb-tg-dark: #c4746e;
+  --arb-tg-dark: #c4746e;
+  --arb-err-dark: #c4746e;
+  --arb-t-dark: #8ea4a2;
+  --arb-t-dark: #8ea4a2;
+  --arb-t-dark: #8ea4a2;
+  --arb-v-dark: #c5c9c5;
+  --arb-v-dark: #c4746e;
+  --arb-v-dark: #9c9c9c;
+  --arb-c-dark: #625e5a;
+  --arb-c-dark: #625e5a;
+  --arb-m-dark: #7aa89f;
+  --arb-l-dark: #a292a3;
+  --arb-da-dark: #8a9a7b;
+  --arb-dd-dark: #c4746e;
+  --arb-n-dark: #a292a3;
+  --arb-tl-dark: #c5c9c5;
+  --arb-em-dark-style: italic;
+  --arb-st-dark-weight: bold;
+  --arb-tu-dark: #8ba4b0;
+  --arb-tu-dark-decoration: underline;
+  --arb-tr-dark: #7aa89f;
+  --arb-se-dark: #a292a3;
+  --arb-tt-dark: #8ea4a2;
+  --arb-tt-dark-weight: bold;
+  --arb-ts-dark-decoration: line-through;
+  --arb-k-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-ch-dark: #a292a3;
+  --arb-pr-dark: #9c9c9c;
+  --arb-f-dark: #8ba4b0;
+  --arb-t-dark: #8ea4a2;
+  --arb-f-dark: #8ba4b0;
+  --arb-k-dark: #c4746e;
+  --arb-k-dark: #c4746e;
+  --arb-sr-dark: #a292a3;
+  --arb-n-dark: #a292a3;
+  --arb-bo-dark: #b6927b;
+}

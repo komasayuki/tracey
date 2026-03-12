@@ -1,61 +1,18 @@
-use std::collections::BTreeMap;
 use std::path::Path;
 
 use eyre::{Result, WrapErr};
-use facet::Facet;
-use tracey_api::{
-    ApiCodeUnit, ApiConfig, ApiFileData, ApiReverseData, ApiSpecData, ApiSpecForward,
+use tracey_api::ApiCodeUnit;
+
+use crate::generate_static::bundle::{
+    StaticBundle, StaticChunk, StaticEntryChunk, StaticEntryManifest, StaticFileChunk,
+    StaticFileRef, StaticHealth, StaticManifest, entry_chunk_path, file_chunk_path,
+};
+use crate::generate_static::rendering::{arborium_language, display_path, html_escape};
+use crate::generate_static::sanitize::{
+    sanitize_static_config, sanitize_static_forward, sanitize_static_spec_content,
 };
 
-use crate::generate_static::rendering::{arborium_language, display_path, html_escape};
-use crate::generate_static::sanitize::{sanitize_static_config, sanitize_static_paths};
-
-#[derive(Debug, Clone, Facet)]
-pub(super) struct StaticSnapshot {
-    pub version: u64,
-    pub config: ApiConfig,
-    pub health: StaticHealth,
-    pub entries: Vec<ImplSnapshot>,
-    pub search_rules: Vec<SearchRule>,
-    pub search_sources: Vec<SearchSource>,
-}
-
-#[derive(Debug, Clone, Facet)]
-pub(super) struct StaticHealth {
-    #[facet(rename = "configError")]
-    pub config_error: Option<String>,
-}
-
-#[derive(Debug, Clone, Facet)]
-pub(super) struct ImplSnapshot {
-    pub spec: String,
-    #[facet(rename = "impl")]
-    pub impl_name: String,
-    pub forward: ApiSpecForward,
-    pub reverse: ApiReverseData,
-    pub spec_content: ApiSpecData,
-    pub files: Vec<FileEntry>,
-}
-
-#[derive(Debug, Clone, Facet)]
-pub(super) struct FileEntry {
-    pub path: String,
-    pub data: ApiFileData,
-}
-
-#[derive(Debug, Clone, Facet)]
-pub(super) struct SearchRule {
-    pub id: String,
-    pub raw: String,
-}
-
-#[derive(Debug, Clone, Facet)]
-pub(super) struct SearchSource {
-    pub path: String,
-    pub content: String,
-}
-
-pub(super) async fn build(project_root: &Path) -> Result<StaticSnapshot> {
+pub(super) async fn build(project_root: &Path) -> Result<StaticBundle> {
     let config_path = project_root.join(".config/tracey/config.styx");
     let (config, mut config_error) = load_config_with_error(&config_path)?;
 
@@ -78,10 +35,9 @@ pub(super) async fn build(project_root: &Path) -> Result<StaticSnapshot> {
         }
     };
 
-    // 画面内検索用に重複を除いたルール/ソース一覧を作る。
-    let mut search_rules: BTreeMap<String, SearchRule> = BTreeMap::new();
-    let mut search_sources: BTreeMap<String, SearchSource> = BTreeMap::new();
-    let mut entries = Vec::new();
+    let mut manifest_entries = Vec::new();
+    let mut entry_chunks = Vec::new();
+    let mut file_chunks = Vec::new();
     let mut highlighter = arborium::Highlighter::new();
 
     for ((spec, impl_name), forward) in &data.forward_by_impl {
@@ -96,79 +52,73 @@ pub(super) async fn build(project_root: &Path) -> Result<StaticSnapshot> {
         let mut forward = forward.clone();
         let mut spec_content =
             render_spec_content(project_root, &data, spec, impl_name, &forward).await?;
-        sanitize_static_paths(project_root, &mut forward, &mut spec_content);
-        let files = build_file_entries(project_root, &data, spec, impl_name, &mut highlighter)?;
+        let files = build_file_chunks(project_root, &data, spec, impl_name, &mut highlighter)?;
 
-        for rule in &forward.rules {
-            search_rules
-                .entry(rule.id.to_string())
-                .or_insert(SearchRule {
-                    id: rule.id.to_string(),
-                    raw: rule.raw.clone(),
-                });
+        sanitize_static_forward(project_root, &mut forward);
+        sanitize_static_spec_content(project_root, &mut spec_content);
+
+        let entry_path = entry_chunk_path(spec, impl_name);
+        let mut file_refs = Vec::with_capacity(files.len());
+
+        for chunk in files {
+            file_refs.push(StaticFileRef {
+                path: chunk.data.path.clone(),
+                chunk: chunk.relative_path.clone(),
+            });
+            file_chunks.push(chunk);
         }
 
-        for file in &files {
-            search_sources
-                .entry(file.path.clone())
-                .or_insert_with(|| SearchSource {
-                    path: file.path.clone(),
-                    content: file.data.content.clone(),
-                });
-        }
+        canonicalize_entry(&mut forward, &mut spec_content, &mut file_refs);
 
-        entries.push(ImplSnapshot {
+        manifest_entries.push(StaticEntryManifest {
             spec: spec.clone(),
             impl_name: impl_name.clone(),
-            forward,
-            reverse,
-            spec_content,
-            files,
+            chunk: entry_path.clone(),
+        });
+        entry_chunks.push(StaticChunk {
+            relative_path: entry_path,
+            data: StaticEntryChunk {
+                spec: spec.clone(),
+                impl_name: impl_name.clone(),
+                forward,
+                reverse,
+                spec_content,
+                files: file_refs,
+            },
         });
     }
 
-    entries.sort_by(|a, b| (&a.spec, &a.impl_name).cmp(&(&b.spec, &b.impl_name)));
+    manifest_entries.sort_by(|a, b| (&a.spec, &a.impl_name).cmp(&(&b.spec, &b.impl_name)));
+    entry_chunks.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
+    file_chunks.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
 
-    let mut snapshot = StaticSnapshot {
-        version: data.version,
-        config: sanitize_static_config(data.config),
-        health: StaticHealth { config_error },
-        entries,
-        search_rules: search_rules.into_values().collect(),
-        search_sources: search_sources.into_values().collect(),
-    };
-    canonicalize_snapshot(&mut snapshot);
-    Ok(snapshot)
+    Ok(StaticBundle {
+        manifest: StaticManifest {
+            version: data.version,
+            config: sanitize_static_config(data.config),
+            health: StaticHealth { config_error },
+            entries: manifest_entries,
+        },
+        entry_chunks,
+        file_chunks,
+    })
 }
 
-fn canonicalize_snapshot(snapshot: &mut StaticSnapshot) {
-    for entry in &mut snapshot.entries {
-        entry.forward.rules.sort_by(|a, b| a.id.cmp(&b.id));
-        for rule in &mut entry.forward.rules {
-            rule.impl_refs.sort_by(ref_sort_key);
-            rule.verify_refs.sort_by(ref_sort_key);
-            rule.depends_refs.sort_by(ref_sort_key);
-            rule.stale_refs.sort_by(|a, b| {
-                (&a.file, a.line, &a.reference_id).cmp(&(&b.file, b.line, &b.reference_id))
-            });
-        }
-
-        entry.reverse.files.sort_by(|a, b| a.path.cmp(&b.path));
-        for file in &mut entry.files {
-            file.data.units.sort_by(|a, b| {
-                (&a.start_line, &a.end_line, &a.kind, &a.name).cmp(&(
-                    &b.start_line,
-                    &b.end_line,
-                    &b.kind,
-                    &b.name,
-                ))
-            });
-        }
-        entry.files.sort_by(|a, b| a.path.cmp(&b.path));
+fn canonicalize_entry(
+    forward: &mut tracey_api::ApiSpecForward,
+    _spec_content: &mut tracey_api::ApiSpecData,
+    file_refs: &mut [StaticFileRef],
+) {
+    forward.rules.sort_by(|a, b| a.id.cmp(&b.id));
+    for rule in &mut forward.rules {
+        rule.impl_refs.sort_by(ref_sort_key);
+        rule.verify_refs.sort_by(ref_sort_key);
+        rule.depends_refs.sort_by(ref_sort_key);
+        rule.stale_refs.sort_by(|a, b| {
+            (&a.file, a.line, &a.reference_id).cmp(&(&b.file, b.line, &b.reference_id))
+        });
     }
-
-    snapshot.search_rules.sort_by(|a, b| a.id.cmp(&b.id));
-    snapshot.search_sources.sort_by(|a, b| a.path.cmp(&b.path));
+    file_refs.sort_by(|a, b| a.path.cmp(&b.path));
 }
 
 fn ref_sort_key(a: &tracey_api::ApiCodeRef, b: &tracey_api::ApiCodeRef) -> std::cmp::Ordering {
@@ -201,8 +151,8 @@ async fn render_spec_content(
     data: &crate::data::DashboardData,
     spec: &str,
     impl_name: &str,
-    forward: &ApiSpecForward,
-) -> Result<ApiSpecData> {
+    forward: &tracey_api::ApiSpecForward,
+) -> Result<tracey_api::ApiSpecData> {
     let include_patterns = data
         .spec_includes_by_name
         .get(spec)
@@ -220,13 +170,13 @@ async fn render_spec_content(
     .wrap_err_with(|| format!("Failed to render spec content for {spec}/{impl_name}"))
 }
 
-fn build_file_entries(
+fn build_file_chunks(
     project_root: &Path,
     data: &crate::data::DashboardData,
     spec: &str,
     impl_name: &str,
     highlighter: &mut arborium::Highlighter,
-) -> Result<Vec<FileEntry>> {
+) -> Result<Vec<StaticChunk<StaticFileChunk>>> {
     let Some(code_units_by_file) = data
         .code_units_by_impl
         .get(&(spec.to_string(), impl_name.to_string()))
@@ -234,7 +184,7 @@ fn build_file_entries(
         return Ok(Vec::new());
     };
 
-    let mut entries = Vec::new();
+    let mut chunks = Vec::new();
     for (full_path, units) in code_units_by_file {
         let relative = display_path(project_root, full_path);
         let content = match std::fs::read_to_string(full_path) {
@@ -249,7 +199,7 @@ fn build_file_entries(
             None => html_escape(&content),
         };
 
-        let api_units: Vec<ApiCodeUnit> = units
+        let mut api_units: Vec<ApiCodeUnit> = units
             .iter()
             .map(|u| ApiCodeUnit {
                 kind: format!("{:?}", u.kind).to_lowercase(),
@@ -259,18 +209,29 @@ fn build_file_entries(
                 rule_refs: u.req_refs.iter().map(|r| r.to_string()).collect(),
             })
             .collect();
+        api_units.sort_by(|a, b| {
+            (&a.start_line, &a.end_line, &a.kind, &a.name).cmp(&(
+                &b.start_line,
+                &b.end_line,
+                &b.kind,
+                &b.name,
+            ))
+        });
 
-        entries.push(FileEntry {
-            path: relative.clone(),
-            data: ApiFileData {
-                path: relative,
-                content,
-                html,
-                units: api_units,
+        chunks.push(StaticChunk {
+            relative_path: file_chunk_path(spec, impl_name, &relative),
+            data: StaticFileChunk {
+                path: relative.clone(),
+                data: tracey_api::ApiFileData {
+                    path: relative,
+                    content,
+                    html,
+                    units: api_units,
+                },
             },
         });
     }
 
-    entries.sort_by(|a, b| a.path.cmp(&b.path));
-    Ok(entries)
+    chunks.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
+    Ok(chunks)
 }

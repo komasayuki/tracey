@@ -174,6 +174,7 @@ fn build_dashboard() {
 
     // Re-run if dashboard source changes
     println!("cargo:rerun-if-changed=src/bridge/http/dashboard/src");
+    println!("cargo:rerun-if-changed=src/bridge/http/dashboard/public");
     println!("cargo:rerun-if-changed=src/bridge/http/dashboard/index.html");
     println!("cargo:rerun-if-changed=src/bridge/http/dashboard/package.json");
     println!("cargo:rerun-if-changed=src/bridge/http/dashboard/vite.config.ts");
@@ -191,6 +192,7 @@ fn build_dashboard() {
     let dist_exists = dist_files.iter().all(|p| p.exists());
     if dist_exists {
         let src_root = dashboard_dir.join("src");
+        let public_root = dashboard_dir.join("public");
         let source_files = [
             dashboard_dir.join("index.html"),
             dashboard_dir.join("package.json"),
@@ -201,6 +203,7 @@ fn build_dashboard() {
 
         let newest_src = newest_modified_time(&src_root)
             .into_iter()
+            .chain(newest_modified_time(&public_root))
             .chain(
                 source_files
                     .iter()
