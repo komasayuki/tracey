@@ -25,22 +25,29 @@ pub(super) fn render(
     let mut out = String::new();
     let _ = writeln!(out, "# Coverage Report");
     let _ = writeln!(out);
-    let _ = writeln!(out, "- Generated At: {}", report_meta.generated_at);
-    let _ = writeln!(out, "- Git Hash: {}", report_meta.git_hash);
-    let _ = writeln!(out, "- Total Rules: {}", stats.total_rules);
+    let _ = writeln!(out, "Generated At: {}", report_meta.generated_at);
+    let _ = writeln!(out, "Git Hash: {}", report_meta.git_hash);
+    let _ = writeln!(out);
+    let _ = writeln!(out, "## Coverage");
+    let _ = writeln!(out, "Total Rules: {}", stats.total_rules);
     let _ = writeln!(
         out,
-        "- IMPL Coverage: {}/{} ({:.1}%)",
+        "IMPL Coverage: {}/{} ({:.1}%)",
         stats.impl_covered, stats.impl_total_rules, stats.impl_percent
     );
     let _ = writeln!(
         out,
-        "- TEST Coverage: {}/{} ({:.1}%)",
+        "TEST Coverage: {}/{} ({:.1}%)",
         stats.verify_covered, stats.verify_total_rules, stats.verify_percent
     );
     let _ = writeln!(out);
 
-    for ((spec, impl_name), forward) in &data.forward_by_impl {
+    let mut impl_tables: Vec<_> = data.forward_by_impl.iter().collect();
+    impl_tables.sort_by(|((spec_a, impl_a), _), ((spec_b, impl_b), _)| {
+        table_sort_key(spec_a, impl_a).cmp(&table_sort_key(spec_b, impl_b))
+    });
+
+    for ((spec, impl_name), forward) in impl_tables {
         let _ = writeln!(
             out,
             "## Spec: {}, Impl: {}",
@@ -51,7 +58,10 @@ pub(super) fn render(
         let _ = writeln!(out, "| Requirement ID | IMPL | TEST |");
         let _ = writeln!(out, "| --- | --- | --- |");
 
-        for rule in &forward.rules {
+        let mut rules: Vec<_> = forward.rules.iter().collect();
+        rules.sort_by_key(|rule| rule.id.to_string());
+
+        for rule in rules {
             let impl_refs = render_refs(
                 project_root,
                 report_dir,
@@ -71,6 +81,10 @@ pub(super) fn render(
     }
 
     out
+}
+
+fn table_sort_key(spec: &str, impl_name: &str) -> String {
+    format!("{spec}+{impl_name}")
 }
 
 fn render_refs(
@@ -154,7 +168,7 @@ mod tests {
 
     use tracey_api::ApiCodeRef;
 
-    use super::{render_ref, render_refs};
+    use super::{render_ref, render_refs, table_sort_key};
 
     #[test]
     fn relative_links_are_based_on_report_directory() {
@@ -174,5 +188,10 @@ mod tests {
     fn not_needed_is_rendered_for_optional_side() {
         let got = render_refs(Path::new("/repo"), Path::new("/repo/out"), &[], false);
         assert_eq!(got, "Not Needed");
+    }
+
+    #[test]
+    fn table_sort_key_is_spec_plus_impl() {
+        assert_eq!(table_sort_key("tracey", "main"), "tracey+main");
     }
 }

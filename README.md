@@ -3,6 +3,7 @@
 Changes in this fork:
 - Support requirements definition in Markdown headings
 - `tracey generate` to export `tracey web` site as static HTML.
+- `tracey report` to export a Markdown traceability report.
 - Support `impl.` / `verify.` requirement prefixes across coverage, dashboard, and tooling
 - Do not treat Markdown link text as requirement definitions
 - Allow underscores in requirement IDs
@@ -91,6 +92,33 @@ To specify output directory, you can use `-o` or `--output`.
 tracey generate -o docs/my-site
 tracey generate --output /tmp/tracey-site
 ```
+
+## `tracey report` to export a Markdown traceability report.
+
+Default output directory: `docs/traceability_report_txt`
+
+Generated file name: `traceability_report.md`
+
+```
+tracey report
+```
+
+To specify output directory, you can use `-o` or `--output`.
+
+```
+tracey report -o docs/my-report
+tracey report --output /tmp/tracey-report
+```
+
+The generated Markdown report includes:
+
+- generated timestamp in local time
+- current git hash (or `-` if unavailable)
+- total rule count
+- IMPL coverage
+- TEST coverage
+- one table per `Spec` / `Impl`
+- implementation and verification references as relative path links with line numbers
 
 ## Support `impl.` / `verify.` requirement prefixes across coverage, dashboard, and tooling
 

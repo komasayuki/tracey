@@ -1,10 +1,12 @@
 # Coverage Report
 
-- Generated At: 2026-03-13T09:23:46.443153+09:00
-- Git Hash: a36f3db3eff9
-- Total Rules: 319
-- IMPL Coverage: 261/319 (81.8%)
-- TEST Coverage: 1/319 (0.3%)
+Generated At: 2026-03-13T09:33:00.139407+09:00
+Git Hash: d6512f4208ad
+
+## Coverage
+Total Rules: 319
+IMPL Coverage: 261/319 (81.8%)
+TEST Coverage: 1/319 (0.3%)
 
 ## Spec: tracey, Impl: main
 
