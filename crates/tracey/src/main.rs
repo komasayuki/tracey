@@ -10,7 +10,7 @@ use owo_colors::OwoColorize;
 use std::path::PathBuf;
 
 // Use the library crate
-use tracey::{bridge, daemon, find_project_root, generate};
+use tracey::{bridge, daemon, find_project_root, generate, report};
 
 /// CLI arguments
 #[derive(Debug, facet::Facet)]
@@ -161,6 +161,17 @@ enum Command {
         root: Option<PathBuf>,
 
         /// Output directory (default: docs/generate)
+        #[facet(args::named, args::short = 'o', default)]
+        output: Option<PathBuf>,
+    },
+
+    /// Generate a Markdown traceability report.
+    Report {
+        /// Project root directory (default: current directory)
+        #[facet(args::positional, default)]
+        root: Option<PathBuf>,
+
+        /// Output directory (default: docs/traceability_report_txt)
         #[facet(args::named, args::short = 'o', default)]
         output: Option<PathBuf>,
     },
@@ -390,6 +401,8 @@ async fn main() -> Result<()> {
         }
 
         Command::Generate { root, output } => generate::run(root, output).await,
+
+        Command::Report { root, output } => report::run(root, output).await,
 
         // r[impl daemon.cli.query]
         Command::Query { root, query } => {

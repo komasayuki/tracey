@@ -15,6 +15,7 @@ mod heading_requirements_html;
 mod heading_requirements_links;
 mod heading_requirements_parse;
 mod markdown_anchor;
+pub mod report;
 mod rule_coverage_policy;
 mod rule_id_validation;
 pub(crate) mod rule_suggestions;
