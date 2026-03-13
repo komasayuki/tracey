@@ -23,7 +23,7 @@ pub(super) fn render(
     let stats = CoverageStats::from_rules(&all_rules);
 
     let mut out = String::new();
-    let _ = writeln!(out, "# Coverage Report");
+    let _ = writeln!(out, "# Requirements traceability report");
     let _ = writeln!(out);
     let _ = writeln!(out, "Generated At: {}", report_meta.generated_at);
     let _ = writeln!(out, "Git Hash: {}", report_meta.git_hash);
@@ -55,7 +55,7 @@ pub(super) fn render(
             escape_heading(impl_name)
         );
         let _ = writeln!(out);
-        let _ = writeln!(out, "| Requirement ID | IMPL | TEST |");
+        let _ = writeln!(out, "| Requirement ID | Implemented At | Tested At |");
         let _ = writeln!(out, "| --- | --- | --- |");
 
         let mut rules: Vec<_> = forward.rules.iter().collect();

@@ -54,7 +54,7 @@ async fn report_command_generates_markdown_file() {
     let report_path = root.join("docs/traceability_report_txt/traceability_report.md");
     let report = fs::read_to_string(&report_path).unwrap();
 
-    assert!(report.starts_with("# Coverage Report"));
+    assert!(report.starts_with("# Requirements traceability report"));
     assert!(report.contains("Generated At: "));
     assert!(report.contains("Git Hash: -"));
     assert!(report.contains("## Coverage"));
@@ -62,6 +62,7 @@ async fn report_command_generates_markdown_file() {
     assert!(report.contains("IMPL Coverage: 1/1 (100.0%)"));
     assert!(report.contains("TEST Coverage: 2/2 (100.0%)"));
     assert!(report.contains("## Spec: main, Impl: rust"));
+    assert!(report.contains("| Requirement ID | Implemented At | Tested At |"));
     assert!(report.contains("| `req.example.rule` |"));
     assert!(report.contains("[src/lib.rs:"));
     assert!(report.contains("(../../src/lib.rs#L"));

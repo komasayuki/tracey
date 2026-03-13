@@ -1,7 +1,7 @@
-# Coverage Report
+# Requirements traceability report
 
-Generated At: 2026-03-13T09:33:00.139407+09:00
-Git Hash: d6512f4208ad
+Generated At: 2026-03-13T10:19:54.259597+09:00
+Git Hash: 0022bd12291a
 
 ## Coverage
 Total Rules: 319
@@ -10,7 +10,7 @@ TEST Coverage: 1/319 (0.3%)
 
 ## Spec: tracey, Impl: main
 
-| Requirement ID | IMPL | TEST |
+| Requirement ID | Implemented At | Tested At |
 | --- | --- | --- |
 | `cli.mcp` | [crates/tracey/src/main.rs:297](../../crates/tracey/src/main.rs#L297) | - |
 | `cli.no-args` | - | - |
