@@ -21,3 +21,16 @@ fn unsupported_extension_supports_verify_hash_comments() {
     assert_eq!(reqs.references[0].verb, RefVerb::Verify);
     assert_eq!(reqs.references[0].req_id.to_string(), "req.workflow.check");
 }
+
+#[test]
+fn unsupported_extension_supports_underscore_in_rule_ids() {
+    let content = "# r[impl req.logging.log_compatibility]\n[package]\nname='fixture'\n";
+    let reqs = Reqs::extract_from_content(Path::new("Cargo.toml"), content);
+
+    assert_eq!(reqs.references.len(), 1);
+    assert_eq!(reqs.references[0].verb, RefVerb::Impl);
+    assert_eq!(
+        reqs.references[0].req_id.to_string(),
+        "req.logging.log_compatibility"
+    );
+}

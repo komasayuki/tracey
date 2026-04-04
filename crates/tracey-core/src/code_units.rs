@@ -1610,7 +1610,13 @@ fn try_parse_full_ref(
         end_idx = idx;
         if c == ']' || c == ' ' {
             break;
-        } else if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '.' || c == '+' {
+        } else if c.is_ascii_lowercase()
+            || c.is_ascii_digit()
+            || c == '-'
+            || c == '_'
+            || c == '.'
+            || c == '+'
+        {
             first_word.push(c);
             chars.next();
         } else {
@@ -1699,7 +1705,13 @@ fn try_parse_req_ref(
     while let Some(&(_, c)) = chars.peek() {
         if c == ']' || c == ' ' {
             break;
-        } else if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '.' || c == '+' {
+        } else if c.is_ascii_lowercase()
+            || c.is_ascii_digit()
+            || c == '-'
+            || c == '_'
+            || c == '.'
+            || c == '+'
+        {
             first_word.push(c);
             chars.next();
         } else {
@@ -1733,7 +1745,12 @@ fn try_parse_req_ref(
                     if c == ']' {
                         chars.next();
                         break;
-                    } else if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '+' {
+                    } else if c.is_ascii_lowercase()
+                        || c.is_ascii_digit()
+                        || c == '-'
+                        || c == '_'
+                        || c == '+'
+                    {
                         req_id.push(c);
                         chars.next();
                     } else if c == '.' {

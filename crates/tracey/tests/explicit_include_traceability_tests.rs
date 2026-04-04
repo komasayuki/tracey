@@ -73,6 +73,32 @@ async fn explicit_include_scans_toml_for_impl_and_verify() {
 }
 
 #[tokio::test]
+async fn explicit_include_scans_toml_with_underscore_rule_id() {
+    let config = r#"specs (
+  {
+    name spec
+    include (docs/spec/**/*.md)
+    impls (
+      {
+        name main
+        include (src/**/*.rs Cargo.toml)
+      }
+    )
+  }
+)
+"#;
+    let spec = "# Requirements\n\nr[req.logging.log_compatibility]\n";
+    let cargo_toml = "# r[impl req.logging.log_compatibility]\n[package]\nname='fixture'\n";
+    let (_temp, root) = write_project(config, spec, cargo_toml, "name: check\n");
+
+    let data = load_dashboard(&root).await;
+    let rule = forward_rule(&data, "req.logging.log_compatibility");
+
+    assert_eq!(rule.impl_refs.len(), 1);
+    assert_eq!(rule.impl_refs[0].file, "Cargo.toml");
+}
+
+#[tokio::test]
 async fn test_include_scans_yaml_for_verify_and_flags_impl() {
     let config = r#"specs (
   {

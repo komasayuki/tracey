@@ -404,6 +404,7 @@ fn extract_references_from_text(
                     } else if c.is_ascii_lowercase()
                         || c.is_ascii_digit()
                         || c == '-'
+                        || c == '_'
                         || c == '.'
                         || c == '+'
                     {
@@ -452,6 +453,7 @@ fn extract_references_from_text(
                             } else if c.is_ascii_lowercase()
                                 || c.is_ascii_digit()
                                 || c == '-'
+                                || c == '_'
                                 || c == '+'
                             {
                                 req_id.push(c);
