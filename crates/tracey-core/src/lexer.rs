@@ -4,7 +4,6 @@
 //! It scans comments for patterns like `r[verb rule.id]`.
 
 use crate::RuleId;
-#[cfg(not(feature = "reverse"))]
 use crate::parse_rule_id;
 use crate::sources::{ExtractionResult, Sources};
 use eyre::Result;
@@ -176,6 +175,14 @@ impl Reqs {
 pub(crate) fn extract_from_content(path: &Path, content: &str, reqs: &mut Reqs) {
     #[cfg(feature = "reverse")]
     {
+        if path
+            .extension()
+            .is_none_or(|ext| !crate::sources::is_supported_extension(ext))
+        {
+            extract_from_content_text_based(path, content, reqs);
+            return;
+        }
+
         // Use tree-sitter based extraction
         // r[impl ref.comments.line]
         // r[impl ref.comments.doc]
@@ -210,7 +217,6 @@ pub(crate) fn extract_from_content(path: &Path, content: &str, reqs: &mut Reqs) 
 /// State for tracking ignore directives across lines.
 ///
 /// r[impl ref.ignore.prefix]
-#[cfg(not(feature = "reverse"))]
 #[derive(Default)]
 struct IgnoreState {
     /// Skip the next line (set by @tracey:ignore-next-line)
@@ -223,7 +229,6 @@ struct IgnoreState {
 /// Check if a comment contains ignore directives and update state accordingly.
 ///
 /// Returns true if the current comment's refs should be extracted (not ignored).
-#[cfg(not(feature = "reverse"))]
 fn check_ignore_directives(text: &str, line: usize, state: &mut IgnoreState) -> bool {
     // Check for ignore directives
     // r[impl ref.ignore.next-line]
@@ -260,7 +265,6 @@ fn check_ignore_directives(text: &str, line: usize, state: &mut IgnoreState) -> 
     true
 }
 
-#[cfg(not(feature = "reverse"))]
 fn extract_from_content_text_based(path: &Path, content: &str, reqs: &mut Reqs) {
     // Track line starts for computing line numbers from byte offsets
     let line_starts: Vec<usize> = std::iter::once(0)
@@ -281,9 +285,8 @@ fn extract_from_content_text_based(path: &Path, content: &str, reqs: &mut Reqs) 
         let line_num = line_idx + 1;
         let line_start = line_starts.get(line_idx).copied().unwrap_or(0);
 
-        // Check for line comments (// or ///)
-        if let Some(comment_pos) = line.find("//") {
-            let comment = &line[comment_pos..];
+        // Check for line comments (//, ///, or #)
+        if let Some((comment_pos, comment)) = first_line_comment(line) {
             let comment_start = line_start + comment_pos;
 
             // Check ignore directives before extracting
@@ -330,7 +333,6 @@ fn extract_from_content_text_based(path: &Path, content: &str, reqs: &mut Reqs) 
 }
 
 /// Extract rule references from a piece of text (comment content)
-#[cfg(not(feature = "reverse"))]
 fn extract_references_from_text(
     path: &Path,
     text: &str,
@@ -508,12 +510,25 @@ fn extract_references_from_text(
 }
 
 // r[impl ref.syntax.req-id+2]
-#[cfg(not(feature = "reverse"))]
 fn is_valid_req_id(req_id: &str) -> bool {
     let Some(parsed) = parse_rule_id(req_id) else {
         return false;
     };
     parsed.base.contains('.') && !parsed.base.ends_with('.')
+}
+
+fn first_line_comment(line: &str) -> Option<(usize, &str)> {
+    let slash = line.find("//");
+    let hash = line.find('#');
+    match (slash, hash) {
+        (Some(slash_pos), Some(hash_pos)) if slash_pos < hash_pos => {
+            Some((slash_pos, &line[slash_pos..]))
+        }
+        (Some(_), Some(hash_pos)) => Some((hash_pos, &line[hash_pos..])),
+        (Some(slash_pos), None) => Some((slash_pos, &line[slash_pos..])),
+        (None, Some(hash_pos)) => Some((hash_pos, &line[hash_pos..])),
+        (None, None) => None,
+    }
 }
 
 #[cfg(test)]

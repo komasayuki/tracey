@@ -21,6 +21,7 @@ mod rule_id_validation;
 pub(crate) mod rule_suggestions;
 pub mod search;
 pub mod server;
+mod traceability_matcher;
 pub mod vite;
 
 use config::Config;

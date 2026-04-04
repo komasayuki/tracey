@@ -38,6 +38,7 @@ use crate::rule_coverage_policy::{rule_display_status, rule_needs_impl, rule_nee
 use crate::rule_id_validation::is_valid_rule_id;
 use crate::rule_suggestions::suggest_similar_rule_ids;
 use crate::search;
+use crate::traceability_matcher::TraceabilityMatcher;
 
 // ============================================================================
 // JSON API Types
@@ -860,32 +861,56 @@ fn update_cached_scan_paths(
     }
 }
 
+fn full_walk_for_traceability_matcher(matcher: &TraceabilityMatcher) -> BTreeSet<PathBuf> {
+    matcher.collect_files().into_iter().collect()
+}
+
+fn update_cached_traceability_scan_paths(
+    existing: &mut CachedScanPaths,
+    matcher: &TraceabilityMatcher,
+    changed_files: &[PathBuf],
+) {
+    for changed in changed_files {
+        let exists = changed.exists();
+        let included = exists && matcher.matches(changed);
+        let canonical = changed
+            .canonicalize()
+            .unwrap_or_else(|_| changed.to_path_buf());
+
+        if included {
+            existing.files.insert(canonical);
+        } else {
+            existing.files.remove(&canonical);
+        }
+    }
+}
+
 fn get_cached_impl_scan_paths(
     project_root: &Path,
     include: &[String],
     exclude: &[String],
     changed_files: &[PathBuf],
     cache: &mut BuildCache,
-) -> (BTreeSet<PathBuf>, Vec<String>, bool) {
+) -> (BTreeSet<PathBuf>, TraceabilityMatcher, Vec<String>, bool) {
     let key = ImplScanKey {
         project_root: project_root.to_path_buf(),
         include: include.to_vec(),
         exclude: exclude.to_vec(),
     };
-    let (roots, warnings) = build_scan_roots(project_root, include);
+    let (matcher, warnings) = TraceabilityMatcher::new(project_root, include, exclude);
     let entry = cache.impl_scan_paths.entry(key).or_default();
     let did_full_walk;
     if entry.files.is_empty() {
-        entry.files = full_walk_for_roots(&roots, true, false, exclude);
+        entry.files = full_walk_for_traceability_matcher(&matcher);
         did_full_walk = true;
     } else if !changed_files.is_empty() {
-        update_cached_scan_paths(entry, &roots, changed_files, true, false, exclude);
+        update_cached_traceability_scan_paths(entry, &matcher, changed_files);
         did_full_walk = false;
     } else {
-        entry.files = full_walk_for_roots(&roots, true, false, exclude);
+        entry.files = full_walk_for_traceability_matcher(&matcher);
         did_full_walk = true;
     }
-    (entry.files.clone(), warnings, did_full_walk)
+    (entry.files.clone(), matcher, warnings, did_full_walk)
 }
 
 fn get_cached_spec_scan_paths(
@@ -1102,19 +1127,10 @@ async fn scan_impl_files(
     BTreeMap<PathBuf, Reqs>,
     bool,
 ) {
-    let (mut files, warnings, did_full_walk) =
+    let (mut files, matcher, warnings, did_full_walk) =
         get_cached_impl_scan_paths(project_root, include, exclude, changed_files, cache);
-    let (impl_roots, _) = build_scan_roots(project_root, include);
     for overlay_path in overlay.keys() {
-        if overlay_path
-            .extension()
-            .is_none_or(|ext| !is_supported_extension(ext))
-        {
-            continue;
-        }
-        if path_matches_any_root(overlay_path, &impl_roots)
-            && !path_matches_excludes(overlay_path, &impl_roots, exclude)
-        {
+        if matcher.matches(overlay_path) {
             files.insert(overlay_path.clone());
         }
     }
@@ -1145,6 +1161,57 @@ async fn scan_impl_files(
         parse_warnings,
         warnings,
         code_units_by_file,
+        file_contents,
+        reqs_by_file,
+        did_full_walk,
+    )
+}
+
+async fn scan_test_include_files(
+    project_root: &Path,
+    include: &[String],
+    exclude: &[String],
+    overlay: &FileOverlay,
+    cache: &mut BuildCache,
+    changed_files: &[PathBuf],
+    stats: &mut CacheStats,
+) -> (
+    Vec<ReqReference>,
+    Vec<ParseWarning>,
+    Vec<String>,
+    BTreeMap<PathBuf, String>,
+    BTreeMap<PathBuf, Reqs>,
+    bool,
+) {
+    let (mut files, matcher, warnings, did_full_walk) =
+        get_cached_impl_scan_paths(project_root, include, exclude, changed_files, cache);
+    for overlay_path in overlay.keys() {
+        if matcher.matches(overlay_path) {
+            files.insert(overlay_path.clone());
+        }
+    }
+    let mut refs = Vec::new();
+    let mut parse_warnings = Vec::new();
+    let mut file_contents: BTreeMap<PathBuf, String> = BTreeMap::new();
+    let mut reqs_by_file: BTreeMap<PathBuf, Reqs> = BTreeMap::new();
+    for path in files {
+        if let Ok(parsed) = get_cached_source_file(&path, overlay, cache, stats).await {
+            reqs_by_file.insert(
+                path.clone(),
+                Reqs {
+                    references: parsed.refs.clone(),
+                    warnings: parsed.parse_warnings.clone(),
+                },
+            );
+            refs.extend(parsed.refs);
+            parse_warnings.extend(parsed.parse_warnings);
+            file_contents.insert(path, parsed.content);
+        }
+    }
+    (
+        refs,
+        parse_warnings,
+        warnings,
         file_contents,
         reqs_by_file,
         did_full_walk,
@@ -2016,7 +2083,9 @@ pub async fn build_dashboard_data_with_overlay_and_cache(
                             let relative_str = relative.to_string_lossy();
                             for pattern in &test_patterns {
                                 if glob_match(&relative_str, pattern) {
-                                    test_files.insert(path.to_path_buf());
+                                    let canonical =
+                                        path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+                                    test_files.insert(canonical);
                                     break;
                                 }
                             }
@@ -2150,13 +2219,13 @@ pub async fn build_dashboard_data_with_overlay_and_cache(
             let exclude: Vec<String> = impl_config.exclude.to_vec();
             let impl_key: ImplKey = (spec_name.clone(), impl_name.clone());
             let (
-                refs,
-                parse_warnings,
+                mut refs,
+                mut parse_warnings,
                 scan_warnings,
                 impl_code_units,
                 impl_file_contents,
                 impl_source_reqs_by_file,
-                impl_walk_full_scan,
+                mut impl_walk_full_scan,
             ) = scan_impl_files(
                 project_root,
                 &include,
@@ -2189,6 +2258,41 @@ pub async fn build_dashboard_data_with_overlay_and_cache(
                     impl_name,
                     parse_warnings.len()
                 );
+            }
+
+            if !impl_config.test_include.is_empty() {
+                let (
+                    test_refs,
+                    test_parse_warnings,
+                    test_scan_warnings,
+                    test_file_contents,
+                    test_source_reqs_by_file,
+                    test_walk_full_scan,
+                ) = scan_test_include_files(
+                    project_root,
+                    &impl_config.test_include,
+                    &exclude,
+                    overlay,
+                    cache,
+                    changed_files,
+                    &mut cache_stats,
+                )
+                .await;
+                for warning in &test_scan_warnings {
+                    if !quiet {
+                        eprintln!("{}", warning.yellow());
+                    }
+                }
+                total_source_refs += test_refs.len();
+                for (path, content) in test_file_contents {
+                    all_file_contents.insert(path, content);
+                }
+                for (path, reqs) in test_source_reqs_by_file {
+                    all_source_reqs_by_file.insert(path, reqs);
+                }
+                refs.extend(test_refs);
+                parse_warnings.extend(test_parse_warnings);
+                impl_walk_full_scan = impl_walk_full_scan || test_walk_full_scan;
             }
 
             let abs_root_cloned = abs_root.clone();
@@ -2607,29 +2711,5 @@ fn build_outline(
 ///
 /// Normalizes path separators to forward slashes for cross-platform compatibility.
 pub fn glob_match(path: &str, pattern: &str) -> bool {
-    // Normalize Windows backslashes to forward slashes
-    let path = path.replace('\\', "/");
-
-    if pattern == "**/*.rs" || pattern == "**/*.md" {
-        let ext = pattern.rsplit('.').next().unwrap_or("");
-        return path.ends_with(&format!(".{}", ext));
-    }
-
-    if let Some(rest) = pattern.strip_suffix("/**/*.rs") {
-        return path.starts_with(rest) && path.ends_with(".rs");
-    }
-    if let Some(rest) = pattern.strip_suffix("/**/*.md") {
-        return path.starts_with(rest) && path.ends_with(".md");
-    }
-
-    if let Some(prefix) = pattern.strip_suffix("/**") {
-        return path.starts_with(prefix);
-    }
-
-    if !pattern.contains('*') {
-        return path == pattern;
-    }
-
-    // Fallback
-    true
+    crate::traceability_matcher::glob_match(path, pattern)
 }

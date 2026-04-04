@@ -18,12 +18,44 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use crate::daemon::{DaemonClient, new_client};
 use crate::rule_coverage_policy::{rule_needs_impl, rule_needs_verify};
+use crate::traceability_matcher::TraceabilityMatcher;
 use tracey_core::{RefVerb, parse_rule_id};
 use tracey_proto::*;
 
 /// Convert roam RPC result to a simple Result
 fn rpc<T, E: std::fmt::Debug>(res: Result<T, roam_stream::CallError<E>>) -> Result<T, String> {
     res.map_err(|e| format!("RPC error: {:?}", e))
+}
+
+fn project_traceability_matchers(project_root: &std::path::Path) -> Vec<TraceabilityMatcher> {
+    let config_path = project_root.join(".config/tracey/config.styx");
+    let config = crate::load_config_or_default(&config_path);
+    let mut matchers = Vec::new();
+
+    for spec in config.specs {
+        for impl_config in spec.impls {
+            let include = if impl_config.include.is_empty() {
+                vec![String::from("**/*.rs")]
+            } else {
+                impl_config.include.clone()
+            };
+            let (matcher, _) =
+                TraceabilityMatcher::new(project_root, &include, &impl_config.exclude);
+            matchers.push(matcher);
+
+            if impl_config.test_include.is_empty() {
+                continue;
+            }
+            let (test_matcher, _) = TraceabilityMatcher::new(
+                project_root,
+                &impl_config.test_include,
+                &impl_config.exclude,
+            );
+            matchers.push(test_matcher);
+        }
+    }
+
+    matchers
 }
 
 // Semantic token types for requirement references
@@ -181,6 +213,7 @@ impl Backend {
             .hidden(false)
             .git_ignore(true)
             .build();
+        let matchers = project_traceability_matchers(&self.project_root);
 
         let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
         for entry in walker.flatten() {
@@ -191,10 +224,7 @@ impl Backend {
             if !ft.is_file() {
                 continue;
             }
-            if path
-                .extension()
-                .is_none_or(|ext| !tracey_core::is_supported_extension(ext))
-            {
+            if !matchers.iter().any(|matcher| matcher.matches(path)) {
                 continue;
             }
             let Ok(content) = std::fs::read_to_string(path) else {
@@ -418,6 +448,7 @@ impl Backend {
             .hidden(false)
             .git_ignore(true)
             .build();
+        let matchers = project_traceability_matchers(&self.project_root);
 
         for entry in walker.flatten() {
             let path = entry.path();
@@ -427,9 +458,10 @@ impl Backend {
             if !ft.is_file() {
                 continue;
             }
-            let should_clear = path.extension().is_some_and(|ext| {
-                ext == "md" || ext == "styx" || tracey_core::is_supported_extension(ext)
-            });
+            let should_clear = path
+                .extension()
+                .is_some_and(|ext| ext == "md" || ext == "styx")
+                || matchers.iter().any(|matcher| matcher.matches(path));
             if !should_clear {
                 continue;
             }
