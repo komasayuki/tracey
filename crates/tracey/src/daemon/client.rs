@@ -300,6 +300,35 @@ fn kill_pid(pid: u32) {
 #[cfg(not(unix))]
 fn kill_pid(_pid: u32) {}
 
+#[cfg(unix)]
+async fn wait_for_pid_exit(pid: u32, timeout: Duration) -> bool {
+    let started = Instant::now();
+    while started.elapsed() < timeout {
+        if !is_pid_alive(pid) {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    !is_pid_alive(pid)
+}
+
+#[cfg(not(unix))]
+async fn wait_for_pid_exit(_pid: u32, _timeout: Duration) -> bool {
+    true
+}
+
+async fn terminate_pid_before_restart(pid: u32) -> io::Result<()> {
+    kill_pid(pid);
+    if wait_for_pid_exit(pid, Duration::from_secs(2)).await {
+        Ok(())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            format!("Daemon PID {pid} did not exit after SIGTERM; refusing to start a duplicate"),
+        ))
+    }
+}
+
 impl Connector for DaemonConnector {
     type Transport = roam_local::LocalStream;
 
@@ -344,12 +373,13 @@ impl Connector for DaemonConnector {
                             }
 
                             warn!(
-                                "Daemon PID {} alive but socket unavailable (connect error: {}); removing endpoint+pid and restarting",
+                                "Daemon PID {} alive but socket unavailable (connect error: {}); terminating it before restart",
                                 pid, e
                             );
                         }
                     }
-                    // Socket connect failed despite live PID — stale socket.
+                    // Socket connect failed despite live PID. Stop that process before restart.
+                    terminate_pid_before_restart(pid).await?;
                     let _ = roam_local::remove_endpoint(&endpoint);
                     let _ = std::fs::remove_file(pid_file_path(&self.project_root));
                 } else {
@@ -360,7 +390,7 @@ impl Connector for DaemonConnector {
                             current = tracey_proto::PROTOCOL_VERSION,
                             "Daemon protocol version mismatch, restarting",
                         );
-                        kill_pid(pid);
+                        terminate_pid_before_restart(pid).await?;
                     }
                     let _ = roam_local::remove_endpoint(&endpoint);
                     let _ = std::fs::remove_file(pid_file_path(&self.project_root));
@@ -371,11 +401,22 @@ impl Connector for DaemonConnector {
                 // No PID file — remove stale socket if present.
                 // r[impl daemon.lifecycle.stale-socket]
                 if roam_local::endpoint_exists(&endpoint) {
-                    warn!(
-                        "No PID file but endpoint exists at {:?}; removing stale endpoint",
-                        endpoint
-                    );
-                    let _ = roam_local::remove_endpoint(&endpoint);
+                    match roam_local::connect(&endpoint).await {
+                        Ok(stream) => {
+                            debug!(
+                                "No PID file but endpoint exists at {:?}; reusing live daemon",
+                                endpoint
+                            );
+                            return Ok(stream);
+                        }
+                        Err(e) => {
+                            warn!(
+                                "No PID file but endpoint exists at {:?} and connect failed ({}); removing stale endpoint",
+                                endpoint, e
+                            );
+                            let _ = roam_local::remove_endpoint(&endpoint);
+                        }
+                    }
                 }
             }
         }

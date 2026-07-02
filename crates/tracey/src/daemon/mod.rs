@@ -21,6 +21,7 @@
 
 pub mod client;
 pub mod engine;
+mod lifecycle;
 pub mod service;
 pub mod watcher;
 
@@ -38,6 +39,7 @@ use watcher::{WatcherEvent, WatcherManager, WatcherState};
 
 pub use client::{DaemonClient, DaemonConnector, new_client};
 pub use engine::Engine;
+pub use lifecycle::wait_until_stopped;
 pub use service::TraceyService;
 pub use watcher::WatcherState as DaemonWatcherState;
 

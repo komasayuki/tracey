@@ -830,22 +830,39 @@ async fn kill_daemon(root: Option<PathBuf>) -> Result<()> {
             let client = connect(connector, HandshakeConfig::default(), NoDispatcher);
             let client = tracey_proto::TraceyDaemonClient::new(client);
 
-            match client.shutdown().await {
+            let wait_for_shutdown = match client.shutdown().await {
                 Ok(()) => {
                     println!("{}: Shutdown signal sent", "Success".green());
+                    true
                 }
                 Err(e) => {
                     // Connection may close before we get a response, that's OK
                     let err_str = e.to_string();
                     if err_str.contains("closed") {
                         println!("{}: Daemon stopped", "Success".green());
+                        true
                     } else {
                         println!(
                             "{}: Error sending shutdown: {}",
                             "Warning".yellow(),
                             err_str
                         );
+                        false
                     }
+                }
+            };
+
+            if wait_for_shutdown {
+                let stopped =
+                    daemon::wait_until_stopped(&project_root, std::time::Duration::from_secs(3))
+                        .await;
+                if stopped {
+                    println!("{}: Daemon shutdown confirmed", "Success".green());
+                } else {
+                    println!(
+                        "{}: Daemon shutdown did not finish within 3 seconds",
+                        "Warning".yellow()
+                    );
                 }
             }
         }
