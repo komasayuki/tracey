@@ -41,6 +41,10 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Run dashboard unit tests
+        working-directory: crates/tracey/src/bridge/http/dashboard
+        run: pnpm run test:unit
+
       - name: Build
         run: cargo build --verbose
 

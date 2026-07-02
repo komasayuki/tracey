@@ -274,7 +274,7 @@ fn build_dashboard() {
     }
 
     // Check if pnpm is available
-    let pnpm_check = shell_command("pnpm").arg("version").output();
+    let pnpm_check = shell_command("pnpm").arg("--version").output();
 
     match pnpm_check {
         Ok(output) if output.status.success() => {
@@ -336,6 +336,7 @@ fn build_dashboard() {
     // Install dependencies if needed
     let status = shell_command("pnpm")
         .args(["install", "--frozen-lockfile"])
+        .env("CI", "true")
         .current_dir(dashboard_dir)
         .status()
         .expect("Failed to run pnpm install - is pnpm installed?");

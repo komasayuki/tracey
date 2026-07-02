@@ -8,10 +8,26 @@
     });
   }
 
+  function normalizeApiPath(parsedUrl) {
+    let pathname = parsedUrl.pathname;
+    if (window.location.protocol === "file:") {
+      // Windows file URL compatibility:
+      // new URL("/api/config", "file:///C:/path/index.html")
+      // resolves to file:///C:/api/config, whose pathname is /C:/api/config.
+      pathname = pathname.replace(/^\/[A-Za-z]:\/api\//, "/api/");
+    }
+    return pathname;
+  }
+
+  if (window.__TRACEY_STATIC_TESTS__) {
+    window.__TRACEY_STATIC_TESTS__.normalizeApiPath = normalizeApiPath;
+  }
+
   window.fetch = async function(input, init) {
     const url = typeof input === "string" ? input : input.url;
     const parsed = new URL(url, window.location.href);
-    if (!parsed.pathname.startsWith("/api/")) {
+    const apiPath = normalizeApiPath(parsed);
+    if (!apiPath.startsWith("/api/")) {
       return core.originalFetch(input, init);
     }
 
@@ -19,7 +35,7 @@
     const params = parsed.searchParams;
     const entry = await core.loadEntryFromParams(manifest, params);
 
-    switch (parsed.pathname) {
+    switch (apiPath) {
       case "/api/config":
         return jsonResponse(200, manifest.config || { specs: [] });
       case "/api/health":
